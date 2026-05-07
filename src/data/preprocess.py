@@ -39,7 +39,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def inject_anomalies(df: pd.DataFrame, anomaly_fraction: float = 0.02) -> pd.DataFrame:
+def inject_anomalies(df: pd.DataFrame, anomaly_fraction: float = 0.02) -> tuple[pd.DataFrame, pd.Series]:
     # The df DataFrame is our source of normal data.
     # We will create a copy to inject anomalies into.
     df_polluted = df.copy()
@@ -82,4 +82,4 @@ def inject_anomalies(df: pd.DataFrame, anomaly_fraction: float = 0.02) -> pd.Dat
     # Set the value to 1 at the indices where we injected anomalies.
     anomaly_label.loc[anomaly_indices] = 1
 
-    return df_polluted
+    return df_polluted, anomaly_label
