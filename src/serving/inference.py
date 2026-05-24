@@ -34,7 +34,7 @@ MODEL_DIR = "notebooks/mlruns/0/models/m-fdb06fe56dc243a6b063a4c539a8153a/artifa
 
 try:
     # Load the trained Isolation Forest model in MLflow pyfunc format
-    model = mlflow.pyfunc.load_model(MODEL_DIR)
+    model = mlflow.sklearn.load_model(MODEL_DIR)
     print(f"✅ Isolation Forest Model loaded successfully from {MODEL_DIR}")
 except Exception as e:
     print(f"❌ Failed to load model from {MODEL_DIR}: {e}")
@@ -44,7 +44,7 @@ except Exception as e:
         local_model_paths = glob.glob("./mlruns/*/*/artifacts/model")
         if local_model_paths:
             latest_model = max(local_model_paths, key=os.path.getmtime)
-            model = mlflow.pyfunc.load_model(latest_model)
+            model = mlflow.sklearn.load_model(latest_model)
             MODEL_DIR = latest_model
             print(f"✅ Fallback: Loaded model from {latest_model}")
         else:
@@ -131,15 +131,8 @@ def predict(input_dict: dict) -> float:
     
     # === STEP 3: Generate Model Prediction ===
     try:
-        preds = model.predict(df_enc)
-        
-        if hasattr(preds, "tolist"):
-            preds = preds.tolist()
-            
-        if isinstance(preds, (list, tuple)) and len(preds) == 1:
-            result = preds[0]
-        else:
-            result = preds
+        scores = model.decision_function(df_enc)
+        result = float(scores[0])
             
     except Exception as e:
         raise Exception(f"Model prediction failed: {e}")

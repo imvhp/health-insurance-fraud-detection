@@ -16,6 +16,8 @@ Test endpoints:
     POST http://localhost:8000/predict_batch
 """
 
+import math
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -161,7 +163,7 @@ def get_prediction(claim: ClaimData):
         anomaly_score = predict(claim_dict)
         
         # 3. Convert to human-readable percentage (0-100)
-        risk_percentage = (anomaly_score + 1) / 2 * 100
+        risk_percentage = (1 / (1 + math.exp(anomaly_score * 10))) * 100
         
         # 4. Determine prediction category
         prediction = "ANOMALY" if risk_percentage > 50 else "NORMAL"
@@ -221,43 +223,47 @@ def predict_batch(claims: List[ClaimData]):
             detail=f"Batch prediction failed: {str(e)}"
         )
 
+# In src/app/api.py
+
 @app.post("/explain")
 def explain_prediction(claim: ClaimData):
-    """
-    Get explanation for why a claim was flagged as anomalous.
-    
-    Uses SHAP-based feature importance to explain the prediction.
-    """
     try:
         claim_dict = claim.dict()
         
-        # In production, would use actual SHAP explanations
-        # For now, return structured format that partner can display
+        # 1. Actually run the prediction first!
+        anomaly_score = predict(claim_dict)
+        
+        # (Assuming you applied the sigmoid math fix above)
+        risk_percentage = (1 / (1 + math.exp(anomaly_score * 10))) * 100
+        is_anomaly = risk_percentage > 50
+
+        # 2. Return a SAFE response for normal claims
+        if not is_anomaly:
+            return {
+                "provider_id": claim.PRVDR_NUM,
+                "explanation_method": "Rule-based routing",
+                "top_factors": [],
+                "summary": "Claim falls within normal distribution parameters.",
+                "confidence": round((100 - risk_percentage) / 100, 2)
+            }
+
+        # 3. Return the flagged response ONLY if it's an anomaly
         explanation = {
             "provider_id": claim.PRVDR_NUM,
-            "explanation_method": "SHAP Feature Importance",
+            "explanation_method": "SHAP Feature Importance (Mock)",
             "top_factors": [
                 {
                     "feature": "claim_amount",
                     "impact": 0.45,
-                    "direction": "high",
+                    "direction": "high" if claim.NCH_PRMRY_PYR_CLM_PD_AMT > 20000 else "unusual",
                     "value": claim.NCH_PRMRY_PYR_CLM_PD_AMT
-                },
-                {
-                    "feature": "drg_code",
-                    "impact": 0.35,
-                    "direction": "unusual",
-                    "value": claim.CLM_DRG_CD
                 }
             ],
-            "summary": "Claim flagged: Unusually high amount + rare DRG code",
-            "confidence": 0.92
+            "summary": "Claim flagged based on input feature deviations.",
+            "confidence": round(risk_percentage / 100, 2)
         }
         
         return explanation
         
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Explanation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Explanation failed: {str(e)}")

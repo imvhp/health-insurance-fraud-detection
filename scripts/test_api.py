@@ -19,27 +19,27 @@ API_URL = "http://localhost:8000"
 
 # Test claim data (valid JSON format)
 VALID_CLAIM = {
-    "PRVDR_NUM": "1002CR",
-    "NCH_PRMRY_PYR_CLM_PD_AMT": 25000.0,
-    "AT_PHYSN_NPI": "1234567890",
-    "OP_PHYSN_NPI": "9876543210",
-    "OT_PHYSN_NPI": "5555555555",
-    "CLM_UTLZTN_DAY_CNT": 10,
-    "ADMTNG_ICD9_DGNS_CD": "78650",
-    "CLM_DRG_CD": "065",
-    "ICD9_PRCDR_CD_1": "3991"
+    "PRVDR_NUM": "1151",
+    "NCH_PRMRY_PYR_CLM_PD_AMT": 0.0,
+    "AT_PHYSN_NPI": "16227",
+    "OP_PHYSN_NPI": "7750",
+    "OT_PHYSN_NPI": "4386",
+    "CLM_UTLZTN_DAY_CNT": 10.0,
+    "ADMTNG_ICD9_DGNS_CD": "2261",
+    "CLM_DRG_CD": "705",
+    "ICD9_PRCDR_CD_1": "1152"
 }
 
 HIGH_RISK_CLAIM = {
-    "PRVDR_NUM": "5678",
-    "NCH_PRMRY_PYR_CLM_PD_AMT": 95000.0,  # Unusually high!
-    "AT_PHYSN_NPI": "1111111111",
-    "OP_PHYSN_NPI": "2222222222",
-    "OT_PHYSN_NPI": "UNKNOWN",
-    "CLM_UTLZTN_DAY_CNT": 45,  # Very long stay
-    "ADMTNG_ICD9_DGNS_CD": "78999",
-    "CLM_DRG_CD": "999",  # Rare code
-    "ICD9_PRCDR_CD_1": "9999"
+    "PRVDR_NUM": "1632",
+    "NCH_PRMRY_PYR_CLM_PD_AMT": 34592.88887814058,  # Unusually high!
+    "AT_PHYSN_NPI": "10378",
+    "OP_PHYSN_NPI": "7333",
+    "OT_PHYSN_NPI": "4386",
+    "CLM_UTLZTN_DAY_CNT": 5.0,  # Very long stay
+    "ADMTNG_ICD9_DGNS_CD": "263",
+    "CLM_DRG_CD": "76",  # Rare code
+    "ICD9_PRCDR_CD_1": "15"
 }
 
 def print_section(title: str):
