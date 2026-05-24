@@ -17,7 +17,7 @@ Test endpoints:
 """
 
 import math
-
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -29,7 +29,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Import prediction and business logic modules
-from src.serving.inference import predict
+from src.serving.inference import predict, model, _serve_transform, FEATURE_COLS
 from src.models.risk_scoring import calculate_provider_risk_score
 from src.models.alert_logic import should_create_alert, get_routing_decision
 from src.models.explainability import generate_claim_explanation
@@ -223,47 +223,57 @@ def predict_batch(claims: List[ClaimData]):
             detail=f"Batch prediction failed: {str(e)}"
         )
 
-# In src/app/api.py
+import math
 
 @app.post("/explain")
 def explain_prediction(claim: ClaimData):
     try:
         claim_dict = claim.dict()
         
-        # 1. Actually run the prediction first!
+        # 1. Determine if it is actually an anomaly first
         anomaly_score = predict(claim_dict)
-        
-        # (Assuming you applied the sigmoid math fix above)
         risk_percentage = (1 / (1 + math.exp(anomaly_score * 10))) * 100
         is_anomaly = risk_percentage > 50
 
-        # 2. Return a SAFE response for normal claims
+        # 2. If it is a normal claim, return a safe message without doing SHAP analysis
         if not is_anomaly:
             return {
                 "provider_id": claim.PRVDR_NUM,
-                "explanation_method": "Rule-based routing",
+                "explanation_method": "Rule-based",
                 "top_factors": [],
-                "summary": "Claim falls within normal distribution parameters.",
+                "summary": "Claim falls within normal distribution parameters. Not flagged.",
                 "confidence": round((100 - risk_percentage) / 100, 2)
             }
 
-        # 3. Return the flagged response ONLY if it's an anomaly
-        explanation = {
-            "provider_id": claim.PRVDR_NUM,
-            "explanation_method": "SHAP Feature Importance (Mock)",
-            "top_factors": [
-                {
-                    "feature": "claim_amount",
-                    "impact": 0.45,
-                    "direction": "high" if claim.NCH_PRMRY_PYR_CLM_PD_AMT > 20000 else "unusual",
-                    "value": claim.NCH_PRMRY_PYR_CLM_PD_AMT
-                }
-            ],
-            "summary": "Claim flagged based on input feature deviations.",
-            "confidence": round(risk_percentage / 100, 2)
-        }
+        # 3. If anomaly, generate SHAP on the mathematically transformed data
+        df = pd.DataFrame([claim_dict])
+        df_enc = _serve_transform(df)
+        transformed_claim_dict = dict(zip(FEATURE_COLS, df_enc.iloc[0].values))
+        
+        explanation = generate_claim_explanation(
+            claim_data=transformed_claim_dict,
+            model=model,
+            feature_names=FEATURE_COLS,
+            use_shap=True
+        )
+        
+        if "error" in explanation:
+            raise Exception(explanation["error"])
+            
+        # 4. FIX: Map the hashed mathematical values back to the real, human-readable inputs
+        for factor in explanation.get("top_factors", []):
+            feature_name = factor["feature"]
+            if feature_name in claim_dict:
+                factor["value"] = claim_dict[feature_name]
+
+        # 5. Add custom flagged text with the exact risk percentage
+        explanation["summary"] = f"CLAIM FLAGGED ({risk_percentage:.1f}% Risk). " + explanation["summary"]
+        explanation["provider_id"] = claim.PRVDR_NUM
         
         return explanation
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Explanation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Explanation failed: {str(e)}"
+        )

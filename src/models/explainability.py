@@ -171,7 +171,7 @@ def _generate_shap_explanation(
         for idx in sorted_indices[:3]:  # Top 3 factors
             factor_name = feature_names[idx] if idx < len(feature_names) else f"Feature_{idx}"
             impact = float(feature_importance[idx])
-            direction = "high" if shap_values[0][idx] > 0 else "low"
+            direction = "increases anomaly risk" if shap_values[0][idx] < 0 else "supports normal pattern"            
             value = float(claim_array[0][idx])
             
             top_factors.append({
@@ -189,7 +189,7 @@ def _generate_shap_explanation(
                 f"(value: {factor['value']}, impact: {factor['impact']})"
             )
         
-        summary = "Flagged due to: " + " + ".join(summary_parts)
+        summary = "Key driving factors: " + " | ".join(summary_parts)        
         confidence = min(sum(f['impact'] for f in top_factors), 1.0)
         
         return {
