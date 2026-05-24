@@ -1,0 +1,13 @@
+digest: 11a1bf8b
+name: dataset
+profile: '{"num_rows": 66705, "num_elements": 667050}'
+schema: '{"mlflow_colspec": [{"type": "long", "name": "PRVDR_NUM", "required": true},
+  {"type": "double", "name": "NCH_PRMRY_PYR_CLM_PD_AMT", "required": true}, {"type":
+  "long", "name": "AT_PHYSN_NPI", "required": true}, {"type": "long", "name": "OP_PHYSN_NPI",
+  "required": true}, {"type": "long", "name": "OT_PHYSN_NPI", "required": true}, {"type":
+  "double", "name": "CLM_UTLZTN_DAY_CNT", "required": true}, {"type": "long", "name":
+  "ADMTNG_ICD9_DGNS_CD", "required": true}, {"type": "long", "name": "CLM_DRG_CD",
+  "required": true}, {"type": "long", "name": "ICD9_PRCDR_CD_1", "required": true},
+  {"type": "long", "name": "anomaly_label", "required": true}]}'
+source: '{"uri": "polluted_baseline_data"}'
+source_type: local

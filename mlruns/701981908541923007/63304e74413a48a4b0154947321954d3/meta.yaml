@@ -1,0 +1,14 @@
+artifact_uri: file:///E:\SCHOOL\Health Insurance Fraud Detection/mlruns/701981908541923007/63304e74413a48a4b0154947321954d3/artifacts
+end_time: 1779553487305
+entry_point_name: ''
+experiment_id: '701981908541923007'
+lifecycle_stage: active
+run_id: 63304e74413a48a4b0154947321954d3
+run_name: Isolation_Forest_Baseline
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1779553480128
+status: 4
+tags: []
+user_id: Dell

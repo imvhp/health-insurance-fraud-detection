@@ -112,7 +112,7 @@ def _serve_transform(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def predict(input_dict: dict) -> str:
+def predict(input_dict: dict) -> float:
     """
     Main prediction function for Medicare Fraud inference.
     
@@ -144,9 +144,4 @@ def predict(input_dict: dict) -> str:
     except Exception as e:
         raise Exception(f"Model prediction failed: {e}")
     
-    # === STEP 4: Convert to Business-Friendly Output ===
-    # Isolation Forest outputs -1 for Anomalies, 1 for Normal points
-    if result == -1:
-        return "Anomaly Detected (Review Required)"  # High risk - structural or attributive anomaly
-    else:
-        return "Normal Claim"  # Low risk - aligns with normal Medicare distribution
+    return result

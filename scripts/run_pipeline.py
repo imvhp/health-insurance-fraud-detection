@@ -26,6 +26,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.data.preprocess import preprocess_data, inject_anomalies
 from src.features.build_features import build_feature_pipeline
 from src.utils.validate_data import validate_claims_data
+from src.models.train import train_model
+
 
 def main(args):
     """
@@ -35,7 +37,12 @@ def main(args):
     
     # === MLflow Setup - ESSENTIAL for experiment tracking ===
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    mlruns_path = args.mlflow_uri or f"file://{project_root}/mlruns"
+    # For Windows compatibility, use direct path for local MLflow tracking
+    if args.mlflow_uri:
+        mlruns_path = args.mlflow_uri
+    else:
+        mlruns_path = os.path.join(project_root, "mlruns")
+    
     mlflow.set_tracking_uri(mlruns_path)
     mlflow.set_experiment(args.experiment)
 
@@ -101,20 +108,11 @@ def main(args):
         # === STAGE 7: Model Training (Isolation Forest) ===
         print("🤖 Training Isolation Forest Baseline...")
         
-        model = IsolationForest(
-            n_estimators=300,                  # Optimized higher tree count
-            contamination=args.anomaly_fraction, # Tell the model exactly how much fraud to expect
-            max_samples=0.8,                   # Prevent overfitting
-            random_state=42,
-            n_jobs=-1
+        model, anomaly_scores = train_model(
+            df=df_final,  # ← Passes processed data
+            target_col="anomaly_label",
+            anomaly_fraction=0.02
         )
-
-        t0 = time.time()
-        # IMPORTANT: Fit on the polluted training data
-        model.fit(X_train) 
-        train_time = time.time() - t0
-        mlflow.log_metric("train_time", train_time)
-        print(f"✅ Model trained in {train_time:.2f} seconds")
 
         # === STAGE 8: Model Evaluation ===
         print("📊 Evaluating model performance...")
@@ -179,7 +177,5 @@ if __name__ == "__main__":
 """
 # Run the pipeline from your terminal using:
 
-python scripts/run_pipeline.py \
-    --input data/raw/DE1_0_2008_to_2010_Inpatient_Claims_Sample_1.csv \
-    --target anomaly_label
+python scripts/run_pipeline.py --input data/raw/DE1_0_2008_to_2010_Inpatient_Claims_Sample_1.csv --target anomaly_label
 """

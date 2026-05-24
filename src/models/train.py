@@ -1,3 +1,5 @@
+from time import time
+
 import mlflow
 import mlflow.sklearn
 import numpy as np
@@ -34,11 +36,14 @@ def train_model(df: pd.DataFrame, target_col: str, anomaly_fraction: float):
     )
 
     # Start MLflow tracking run
-    with mlflow.start_run(run_name="isolation_forest_baseline"):
+    with mlflow.start_run(run_name="isolation_forest_baseline", nested=True):
         print("\nTraining the Isolation Forest model on the polluted data...")
         
+        train_time = time.time()
         # --- 3. Train Model ---
         iso_forest.fit(X)
+        train_time = time.time() - train_time
+        mlflow.log_metric("train_time", train_time)
         
         # --- 4. Predict and Transform Scores ---
         # Get raw anomaly scores and invert so HIGHER = more anomalous

@@ -1,0 +1,10 @@
+artifact_location: file:///E:\SCHOOL\Health Insurance Fraud Detection/mlruns/701981908541923007/models/m-f9b0abb97234455282c4f2ea936bcf5a/artifacts
+creation_timestamp: 1779553648427
+experiment_id: '701981908541923007'
+last_updated_timestamp: 1779553667391
+model_id: m-f9b0abb97234455282c4f2ea936bcf5a
+model_type: null
+name: isolation_forest_model
+source_run_id: 4b2028453ad843c99b38567d375ab678
+status: 2
+status_message: null
