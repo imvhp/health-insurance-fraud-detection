@@ -25,6 +25,7 @@ USAGE:
 import numpy as np
 import pandas as pd
 from typing import Dict, List
+import time
 
 # Import business logic modules
 from src.models.risk_scoring import (
@@ -171,7 +172,7 @@ def example_workflow():
         print(f"""
 YOUR PARTNER SHOULD:
 1. Create Alert record in their database:
-   - alert_id: ALERT_{provider_id}_{int(np.random.time()*1000)}
+   - alert_id = f"ALERT_{provider_id}_{int(time.time()*1000)}"
    - provider_id: {provider_id}
    - risk_score: {provider_risk_score:.1f}%
    - status: OPEN

@@ -1,8 +1,0 @@
-artifact_location: file:///E:\SCHOOL\Health Insurance Fraud Detection/mlruns/701981908541923007
-creation_time: 1779553478041
-experiment_id: '701981908541923007'
-last_update_time: 1779553478041
-lifecycle_stage: active
-name: Medicare Fraud Baseline
-trace_location: null
-workspace: default

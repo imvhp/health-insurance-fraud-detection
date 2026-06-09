@@ -223,8 +223,6 @@ def predict_batch(claims: List[ClaimData]):
             detail=f"Batch prediction failed: {str(e)}"
         )
 
-import math
-
 @app.post("/explain")
 def explain_prediction(claim: ClaimData):
     try:

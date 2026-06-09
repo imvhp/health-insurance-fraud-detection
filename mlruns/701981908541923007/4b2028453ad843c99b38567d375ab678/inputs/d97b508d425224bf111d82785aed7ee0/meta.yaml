@@ -1,6 +1,0 @@
-destination_id: 604881e3c7275d9f957996f51cc9aa0d
-destination_type: RUN
-source_id: 604881e3c7275d9f957996f51cc9aa0d
-source_type: DATASET
-tags:
-  mlflow.data.context: training_and_evaluation

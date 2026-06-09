@@ -26,11 +26,15 @@ import os
 import pandas as pd
 import numpy as np
 import mlflow
+import joblib
+import glob
 
 # === MODEL LOADING CONFIGURATION ===
 # IMPORTANT: This path is set during Docker container build.
 # We are defaulting to the path where your MLflow artifact is currently stored.
-MODEL_DIR = "notebooks/mlruns/0/models/m-fdb06fe56dc243a6b063a4c539a8153a/artifacts"
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+MODEL_DIR = os.path.join(_PROJECT_ROOT, "mlruns", "0", "models", "m-fdb06fe56dc243a6b063a4c539a8153a", "artifacts")
 
 try:
     # Load the trained Isolation Forest model in MLflow pyfunc format
@@ -40,8 +44,11 @@ except Exception as e:
     print(f"❌ Failed to load model from {MODEL_DIR}: {e}")
     # Fallback for local development
     try:
-        import glob
         local_model_paths = glob.glob("./mlruns/*/*/artifacts/model")
+        # inference.py is at src/serving/inference.py
+        # Go up 2 levels → project root
+        # Fix the fallback glob too
+        local_model_paths = glob.glob(os.path.join(_PROJECT_ROOT, "mlruns/*/*/artifacts/model"))
         if local_model_paths:
             latest_model = max(local_model_paths, key=os.path.getmtime)
             model = mlflow.sklearn.load_model(latest_model)
@@ -97,13 +104,14 @@ def _serve_transform(df: pd.DataFrame) -> pd.DataFrame:
     # Because training used LabelEncoder().fit_transform() on the whole dataset,
     # applying it to a single row would turn everything to 0. 
     # Instead, we use a deterministic hash module to convert strings to consistent integers.
+    encoders = joblib.load("models/encoders/label_encoders.pkl")
     for col in CATEGORICAL_COLS:
         if col in df.columns:
+            le = encoders[col]
             # Fill missing with 'UNKNOWN' exactly like build_features.py
             df[col] = df[col].fillna('UNKNOWN').astype(str)
-            
-            # Create a consistent integer from the string (mod 100000 to keep it manageable for the trees)
-            df[col] = df[col].apply(lambda x: abs(hash(x)) % 100000)
+        
+            df[col] = df[col].apply(lambda x: le.transform([x])[0] if x in le.classes_ else -1)
     
     # === STEP 3: Feature Alignment with Training Schema ===
     # CRITICAL: Ensure features are in exact same order as training
