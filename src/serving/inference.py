@@ -34,7 +34,7 @@ import glob
 # We are defaulting to the path where your MLflow artifact is currently stored.
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
-MODEL_DIR = os.path.join(_PROJECT_ROOT, "mlruns", "0", "models", "m-fdb06fe56dc243a6b063a4c539a8153a", "artifacts")
+MODEL_DIR = os.path.join(_PROJECT_ROOT, "mlruns", "986748799752400137", "models", "m-9ea4ad592db84d42a8d87000b2154f4f", "artifacts")
 
 try:
     # Load the trained Isolation Forest model in MLflow pyfunc format

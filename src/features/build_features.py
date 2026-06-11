@@ -111,10 +111,12 @@ def build_polluted_feature_pipeline(
         df_encoded[col] = df_encoded[col].fillna('UNKNOWN').astype(str)
         le = encoders[col]
 
-        # Map known values; unseen categories (e.g. FRAUD_NPI_1) → -1
-        df_encoded[col] = df_encoded[col].apply(
-            lambda x: int(le.transform([x])[0]) if x in le.classes_ else -1
-        )
+        # 1. Build an O(1) dictionary mapping from the encoder classes
+        mapping_dict = {category: idx for idx, category in enumerate(le.classes_)}
+        
+        # 2. Map values using optimized pandas vectorization. 
+        # Unseen entries (like FRAUD_NPI_1) will automatically become NaN, then filled with -1.
+        df_encoded[col] = df_encoded[col].map(mapping_dict).fillna(-1).astype(int)
 
     # Attach ground-truth label — used only for evaluation, never for training
     df_encoded['anomaly_label'] = anomaly_label.values
