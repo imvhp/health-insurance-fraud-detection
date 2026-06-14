@@ -32,6 +32,13 @@ def select_baseline_features(df: pd.DataFrame) -> pd.DataFrame:
     print(f"Selected {df_baseline.shape[1]} baseline features.")
     return df_baseline
 
+# Add to build_features.py and inference.py
+def _normalize_cat_str(val: str) -> str:
+    """Convert '1152.0' → '1152' so training and serving strings match."""
+    try:
+        return str(int(float(val)))
+    except (ValueError, TypeError):
+        return val  # leaves 'UNKNOWN', 'missing', 'FRAUD_NPI_1' untouched
 
 # ============================================================
 # CLEAN DATA PATH  (fit + transform + save encoders)
@@ -63,7 +70,7 @@ def build_clean_feature_pipeline(
     encoders = {}
 
     for col in CATEGORICAL_COLS:
-        df_encoded[col] = df_encoded[col].fillna('UNKNOWN').astype(str)
+        df_encoded[col] = df_encoded[col].fillna('UNKNOWN').astype(str).apply(_normalize_cat_str)
 
         le = LabelEncoder()
         df_encoded[col] = le.fit_transform(df_encoded[col])
@@ -108,7 +115,7 @@ def build_polluted_feature_pipeline(
     df_encoded = df_selected.copy()
 
     for col in CATEGORICAL_COLS:
-        df_encoded[col] = df_encoded[col].fillna('UNKNOWN').astype(str)
+        df_encoded[col] = df_encoded[col].fillna('UNKNOWN').astype(str).apply(_normalize_cat_str)
         le = encoders[col]
 
         # 1. Build an O(1) dictionary mapping from the encoder classes

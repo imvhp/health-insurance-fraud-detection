@@ -48,6 +48,7 @@ except ImportError:
 def generate_claim_explanation(
     claim_data: Dict,
     model,
+    encoders: Dict = None,
     feature_names: List[str] = None,
     use_shap: bool = True
 ) -> Dict:
@@ -103,6 +104,22 @@ def generate_claim_explanation(
     else:
         claim_array = np.array([claim_data])
     
+    if feature_names is None:
+        feature_names = list(claim_data.keys())
+
+    # Tạo một mảng dữ liệu đã được mã hóa cho model
+    encoded_claim_data = claim_data.copy()
+    
+    if encoders:
+        for col, le in encoders.items():
+            if col in encoded_claim_data:
+                val = str(encoded_claim_data[col])
+                # Tương tự như logic trong build_features.py
+                mapping_dict = {category: idx for idx, category in enumerate(le.classes_)}
+                encoded_claim_data[col] = mapping_dict.get(val, -1)
+
+    claim_array = np.array([list(encoded_claim_data.values())])
+
     # Get model prediction
     try:
         raw_score = model.predict(claim_array)[0]
@@ -119,7 +136,8 @@ def generate_claim_explanation(
         explanation = _generate_shap_explanation(
             claim_array, 
             model, 
-            feature_names
+            feature_names,
+            raw_claim_data=claim_data
         )
     else:
         # Fallback: use heuristic explanation
@@ -135,7 +153,8 @@ def generate_claim_explanation(
 def _generate_shap_explanation(
     claim_array: np.ndarray,
     model,
-    feature_names: List[str]
+    feature_names: List[str],
+    raw_claim_data: Dict = None
 ) -> Dict:
     """
     Use SHAP library to generate feature importance.
@@ -172,8 +191,12 @@ def _generate_shap_explanation(
             factor_name = feature_names[idx] if idx < len(feature_names) else f"Feature_{idx}"
             impact = float(feature_importance[idx])
             direction = "increases anomaly risk" if shap_values[0][idx] < 0 else "supports normal pattern"            
-            value = float(claim_array[0][idx])
-            
+
+            if raw_claim_data and factor_name in raw_claim_data:
+                value = raw_claim_data[factor_name]
+            else:
+                value = float(claim_array[0][idx])
+                
             top_factors.append({
                 "feature": factor_name,
                 "impact": round(impact, 3),

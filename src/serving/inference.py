@@ -29,6 +29,8 @@ import mlflow
 import joblib
 import glob
 
+from src.features.build_features import _normalize_cat_str 
+
 # === MODEL LOADING CONFIGURATION ===
 # IMPORTANT: This path is set during Docker container build.
 # We are defaulting to the path where your MLflow artifact is currently stored.
@@ -109,7 +111,7 @@ def _serve_transform(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             le = encoders[col]
             # Fill missing with 'UNKNOWN' exactly like build_features.py
-            df[col] = df[col].fillna('UNKNOWN').astype(str)
+            df[col] = df[col].fillna('UNKNOWN').astype(str).apply(_normalize_cat_str)
         
             df[col] = df[col].apply(lambda x: le.transform([x])[0] if x in le.classes_ else -1)
     
