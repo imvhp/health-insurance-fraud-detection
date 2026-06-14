@@ -39,10 +39,10 @@ def train_model(df: pd.DataFrame, target_col: str, anomaly_fraction: float):
     with mlflow.start_run(run_name="isolation_forest_baseline", nested=True):
         print("\nTraining the Isolation Forest model on the polluted data...")
         
-        train_time = time.time()
+        train_time = time()
         # --- 3. Train Model ---
         iso_forest.fit(X)
-        train_time = time.time() - train_time
+        train_time = time() - train_time
         mlflow.log_metric("train_time", train_time)
         
         # --- 4. Predict and Transform Scores ---

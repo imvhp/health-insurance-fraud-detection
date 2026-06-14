@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import argparse
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import mlflow
@@ -24,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Local modules - Core pipeline components
 from src.data.preprocess import preprocess_data, inject_anomalies
-from src.features.build_features import build_feature_pipeline
+from src.features.build_features import build_feature_pipeline, load_encoders
 from src.utils.validate_data import validate_claims_data
 from src.models.train import train_model
 
@@ -37,13 +38,15 @@ def main(args):
     
     # === MLflow Setup - ESSENTIAL for experiment tracking ===
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    # For Windows compatibility, use direct path for local MLflow tracking
+    # For Windows compatibility, convert local path to file:// URI
     if args.mlflow_uri:
         mlruns_path = args.mlflow_uri
     else:
         mlruns_path = os.path.join(project_root, "mlruns")
     
-    mlflow.set_tracking_uri(mlruns_path)
+    # Convert to proper file:// URI for cross-platform compatibility
+    mlflow_uri = Path(mlruns_path).as_uri()
+    mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(args.experiment)
 
     # Start MLflow run
@@ -83,13 +86,23 @@ def main(args):
         # === STAGE 5: Feature Engineering ===
         print("🛠️  Building features (Label Encoding & Feature Selection)...")
         target = args.target
-        df_final = build_feature_pipeline(df_polluted, anomaly_label)
-        
+        try:
+            encoders = load_encoders()
+        except FileNotFoundError:
+            encoders = None
+
+        df_final = build_feature_pipeline(
+            df_polluted,
+            anomaly_label,
+            encoders
+        )
+
         # Save processed dataset for reproducibility
         processed_path = os.path.join(project_root, "data", "processed", "claims_processed.csv")
         os.makedirs(os.path.dirname(processed_path), exist_ok=True)
         df_final.to_csv(processed_path, index=False)
         print(f"✅ Processed dataset saved to {processed_path} | Shape: {df_final.shape}")
+
 
         # === STAGE 6: Train/Test Split ===
         print("📊 Splitting data...")
@@ -108,11 +121,17 @@ def main(args):
         # === STAGE 7: Model Training (Isolation Forest) ===
         print("🤖 Training Isolation Forest Baseline...")
         
+        t0 = time.time()
+        # Reconstruct full training dataframe (features + target) for train_model
+        X_train_with_target = X_train.copy()
+        X_train_with_target[target] = y_train
+        
         model, anomaly_scores = train_model(
-            df=df_final,  # ← Passes processed data
-            target_col="anomaly_label",
+            df=X_train_with_target,
+            target_col=target,
             anomaly_fraction=0.02
         )
+        train_time = time.time() - t0
 
         # === STAGE 8: Model Evaluation ===
         print("📊 Evaluating model performance...")
