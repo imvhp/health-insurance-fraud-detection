@@ -16,18 +16,23 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
 
     # Fill missing optional NPIs with a placeholder string 'missing'
     npi_cols = ['AT_PHYSN_NPI', 'OP_PHYSN_NPI', 'OT_PHYSN_NPI']
-    df[npi_cols] = df[npi_cols].fillna('missing')
+    df[npi_cols] = df[npi_cols].fillna(0)
 
     # 3. Correct Data Types
     # Convert date columns from float/int to datetime objects
     date_cols = ['CLM_FROM_DT', 'CLM_THRU_DT', 'CLM_ADMSN_DT', 'NCH_BENE_DSCHRG_DT']
     for col in date_cols:
         # The conversion handles both float and int types by first casting to int, then to string.
+        as_str = df[col].dropna().astype(int).astype(str)
+        bad = as_str[as_str.str.len() != 8]
+        if not bad.empty:
+            print(f"[{col}] {len(bad)} non-8-digit values: {bad.unique()[:5]}")
         df[col] = pd.to_datetime(df[col].astype(int).astype(str), format='%Y%m%d')
+
 
     # Convert NPI columns to string type, handling the mixed types (float and our 'missing' string)
     for col in npi_cols:
-        df[col] = df[col].apply(lambda x: str(int(x)) if x != 'missing' else x)
+        df[col] = df[col].fillna(0).astype('int64').astype(str)
 
     # 4. Address Invalid Values
     # Correct negative payment amounts by taking the absolute value

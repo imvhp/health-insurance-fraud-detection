@@ -43,7 +43,7 @@ def validate_claims_data(df: pd.DataFrame) -> Tuple[bool, List[str]]:
     for col in npi_cols:
         expectations_to_run.append(gx.expectations.ExpectColumnToExist(column=col))
         expectations_to_run.append(gx.expectations.ExpectColumnValuesToNotBeNull(column=col))
-        expectations_to_run.append(gx.expectations.ExpectColumnValuesToBeOfType(column=col, type_="object"))
+        expectations_to_run.append(gx.expectations.ExpectColumnValuesToBeOfType(column=col, type_="str"))
         
     # Financial features schema & numeric range validation
     expectations_to_run.append(gx.expectations.ExpectColumnToExist(column="CLM_PMT_AMT"))
@@ -75,7 +75,8 @@ def validate_claims_data(df: pd.DataFrame) -> Tuple[bool, List[str]]:
             passed_checks += 1
         else:
             # Capture the name of the Expectation that failed
-            failed_expectations.append(type(expectation).__name__)
+            col_name = expectation.column if hasattr(expectation, 'column') else '?'
+            failed_expectations.append(f"{type(expectation).__name__}({col_name})")
             
     is_success = passed_checks == total_checks
 

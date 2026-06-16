@@ -1,7 +1,4 @@
 import os
-
-from fastapi import encoders
-import joblib
 import joblib
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder

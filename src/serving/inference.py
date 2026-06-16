@@ -26,6 +26,7 @@ import os
 import pandas as pd
 import numpy as np
 import mlflow
+import joblib
 
 # === MODEL LOADING CONFIGURATION ===
 # IMPORTANT: This path is set during Docker container build.
@@ -51,6 +52,20 @@ except Exception as e:
             raise Exception("No model found in local mlruns")
     except Exception as fallback_error:
         print(f"Warning: Model could not be loaded at startup. Error: {fallback_error}")
+
+# === ENCODER LOADING CONFIGURATION ===
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+ENCODER_PATH = os.path.join(PROJECT_ROOT, "models", "encoders", "label_encoders.pkl")
+encoders = None
+
+try:
+    if os.path.exists(ENCODER_PATH):
+        encoders = joblib.load(ENCODER_PATH)
+        print(f"✅ Encoders loaded successfully from {ENCODER_PATH}")
+    else:
+        print(f"⚠️ Encoders not found at {ENCODER_PATH}. Will fallback to deterministic hashing.")
+except Exception as e:
+    print(f"Warning: Encoders could not be loaded from {ENCODER_PATH} ({e}). Will fallback to deterministic hashing.")
 
 # === FEATURE SCHEMA CONSTANTS ===
 # CRITICAL: Load the exact feature column order used during training
@@ -94,16 +109,24 @@ def _serve_transform(df: pd.DataFrame) -> pd.DataFrame:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
             
     # === STEP 2: Production-Safe Categorical Encoding ===
-    # Because training used LabelEncoder().fit_transform() on the whole dataset,
-    # applying it to a single row would turn everything to 0. 
-    # Instead, we use a deterministic hash module to convert strings to consistent integers.
+    # Use saved LabelEncoders fit during training for consistency.
+    # If a category was unseen during training, it is mapped to 'UNKNOWN' (or the first class).
     for col in CATEGORICAL_COLS:
         if col in df.columns:
             # Fill missing with 'UNKNOWN' exactly like build_features.py
             df[col] = df[col].fillna('UNKNOWN').astype(str)
             
-            # Create a consistent integer from the string (mod 100000 to keep it manageable for the trees)
-            df[col] = df[col].apply(lambda x: abs(hash(x)) % 100000)
+            if encoders and col in encoders:
+                le = encoders[col]
+                # Determine fallback class ('UNKNOWN' if fitted, otherwise the first class)
+                fallback_class = 'UNKNOWN' if 'UNKNOWN' in le.classes_ else le.classes_[0]
+                # Map unseen classes to the fallback class
+                df[col] = df[col].apply(lambda x: x if x in le.classes_ else fallback_class)
+                # Apply encoding
+                df[col] = le.transform(df[col])
+            else:
+                # Fallback to deterministic hash if encoders are not loaded/found
+                df[col] = df[col].apply(lambda x: abs(hash(x)) % 100000)
     
     # === STEP 3: Feature Alignment with Training Schema ===
     # CRITICAL: Ensure features are in exact same order as training

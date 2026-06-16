@@ -1,0 +1,5 @@
+Model,Accuracy,Precision,Recall,F1-Score,ROC-AUC,True Negatives,False Positives,False Negatives,True Positives
+Isolation Forest,0.9679,0.2253,0.2472,0.2357,0.8164,12847,227,201,66
+One-Class SVM,0.9699,0.2563,0.2659,0.261,0.8882,12868,206,196,71
+CBLOF,0.9621,0.0,0.0,0.0,0.5082,12836,238,267,0
+ECOD,0.966,0.163,0.1685,0.1657,0.872,12843,231,222,45

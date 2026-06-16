@@ -82,8 +82,8 @@ if submitted:
             if response.status_code == 200:
                 result = response.json()["prediction"]
                 
-                # Display results with visual cues
-                if "Anomaly" in result or "Review" in result:
+                # Display results with visual cues (case-insensitive checks)
+                if "ANOMALY" in result.upper() or "REVIEW" in result.upper():
                     st.error(f"⚠️ **Result:** {result}")
                     st.warning("This claim exhibits anomalous structural or attributive patterns. Manual review is recommended.")
                 else:
