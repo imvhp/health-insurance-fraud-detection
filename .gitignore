@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+data/raw/*.csv
+outputs/*.csv
+outputs/*.png
+models/*.joblib
