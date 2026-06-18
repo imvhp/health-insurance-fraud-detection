@@ -39,15 +39,11 @@ Hệ thống được thiết kế để hỗ trợ chu kỳ retrain khi có d�
 
 Do bộ dữ liệu CMS không có nhãn gian lận thực tế, nghiên cứu áp dụng phương pháp **synthetic anomaly labeling**: xây dựng nhãn bất thường mô phỏng dựa trên tổ hợp các quy tắc nghiệp vụ có trọng số, xuất phát từ các chỉ dấu gian lận bảo hiểm y tế phổ biến được ghi nhận trong tài liệu chuyên ngành.
 
-Với mỗi hồ sơ, điểm bất thường tổng hợp $s_i$ được tính theo công thức cộng dồn:
-
-$$s_i = \sum_{k} w_k \cdot \mathbf{1}[\text{điều kiện}_k(x_i)]$$
-
-trong đó $w_k$ là trọng số của quy tắc thứ $k$ và $\mathbf{1}[\cdot]$ là hàm chỉ thị. Các quy tắc và trọng số cụ thể được trình bày trong Bảng 2.1.
+Với mỗi hồ sơ, điểm bất thường tổng hợp được tính theo cơ chế cộng dồn: mỗi quy tắc nghiệp vụ được kiểm tra độc lập; nếu hồ sơ thỏa mãn điều kiện của quy tắc nào thì điểm của quy tắc đó được cộng vào tổng điểm. Điểm cuối cùng là tổng tất cả các quy tắc được kích hoạt, phản ánh mức độ bất thường tổng thể theo nhiều chiều đánh giá song song. Các quy tắc và trọng số cụ thể được trình bày trong Bảng 2.1.
 
 **Bảng 2.1.** Quy tắc và trọng số xây dựng nhãn bất thường mô phỏng.
 
-| Chỉ dấu bất thường | Điều kiện kích hoạt | Trọng số $w_k$ |
+| Chỉ dấu bất thường | Điều kiện kích hoạt | Trọng số |
 |---|---|:---:|
 | Chi phí claim rất cao | `CLM_PMT_AMT` > phân vị 95% | 1,0 |
 | Chi phí claim cực cao | `CLM_PMT_AMT` > phân vị 99% | +2,0 (cộng dồn) |
@@ -57,13 +53,13 @@ trong đó $w_k$ là trọng số của quy tắc thứ $k$ và $\mathbf{1}[\cdo
 | Upcoding mã chẩn đoán/thủ thuật | `num_diagnosis_codes` hoặc `num_procedure_codes` > phân vị 95% | 0,7 |
 | Provider/physician hiếm gặp kèm chi phí cao | Tần suất xuất hiện ≤ phân vị 5% **và** `CLM_PMT_AMT` > phân vị 90% | 0,5 |
 
-Sau khi tính $s_i$ cho toàn bộ $N$ hồ sơ, nhãn nhị phân $y_i \in \{0, 1\}$ được gán cho $\lfloor \tau \times N \rfloor$ hồ sơ có điểm tổng hợp cao nhất, trong đó $\tau = 0{,}05$ là tỉ lệ nhiễm mặc định (*contamination rate*). Phương pháp này tạo ra môi trường kiểm thử có kiểm soát (*controlled stress test*) và không thay thế cho nhãn gian lận được xác minh thực tế.
+Sau khi tính điểm cho toàn bộ hồ sơ, nhãn bất thường được gán cho 5% hồ sơ có tổng điểm cao nhất (tương ứng tỉ lệ nhiễm mặc định *contamination rate* = 0,05). Phương pháp này tạo ra môi trường kiểm thử có kiểm soát (*controlled stress test*) và không thay thế cho nhãn gian lận được xác minh thực tế.
 
 > **Lưu ý về tính giá trị khoa học**: Toàn bộ chỉ số Precision, Recall, F1 và ROC-AUC trong nghiên cứu này được tính trên nhãn mô phỏng (*synthetic anomaly evaluation*). Kết quả phản ánh khả năng của mô hình trong việc tái phát hiện các chỉ dấu nghiệp vụ đã định nghĩa — không phản ánh hiệu suất trên gian lận thực tế chưa được xác minh.
 
 ### 2.2. Phân tách Tập Dữ liệu
 
-Dữ liệu được phân tách theo tỉ lệ 70% huấn luyện / 30% kiểm tra bằng phương pháp **phân tầng** (*stratified split*) theo nhãn $y$, nhằm đảm bảo tỉ lệ bất thường được phân bố đồng đều trong cả hai tập. Tham số `random_state = 42` được sử dụng nhất quán trong toàn bộ quy trình.
+Dữ liệu được phân tách theo tỉ lệ 70% huấn luyện / 30% kiểm tra bằng phương pháp **phân tầng** (*stratified split*), nghĩa là tỉ lệ hồ sơ bất thường và bình thường được giữ nguyên trong cả tập train lẫn tập test — tránh tình huống ngẫu nhiên dẫn đến một tập có quá ít hoặc quá nhiều mẫu bất thường so với tỉ lệ thực. Tham số `random_state = 42` được sử dụng nhất quán trong toàn bộ quy trình để đảm bảo tính tái lập.
 
 ### 2.3. Đặc điểm Tập Dữ liệu Thực nghiệm
 
@@ -80,7 +76,7 @@ Kết quả phân tích đặc điểm (*data profiling*) trên tập thực ngh
 | — Đặc trưng dạng số | 77 (81,9%) |
 | — Đặc trưng dạng phân loại | 17 (18,1%) |
 | Tỉ lệ giá trị khuyết trung bình | 54,78% |
-| Tỉ lệ bất thường mô phỏng ($\tau$) | 5,0% (150/3.000) |
+| Tỉ lệ bất thường mô phỏng | 5,0% (150/3.000) |
 | Số hồ sơ bất thường trong tập test | ~45 / 900 |
 
 Tỉ lệ giá trị khuyết cao (54,78%) phản ánh bản chất tự nhiên của dữ liệu y tế: mỗi hồ sơ chỉ điền một tập con các mã chẩn đoán và thủ thuật tùy theo tình trạng lâm sàng. Đây cũng là lý do khiến chiến lược xử lý giá trị khuyết (*imputation strategy*) trở thành một quyết định thiết kế quan trọng trong pipeline.
@@ -158,13 +154,9 @@ Pipeline tiền xử lý được xây dựng theo kiến trúc `ColumnTransform
 
 **Lựa chọn chiến lược imputation**: Median được sử dụng thay cho mean đối với biến số vì phân phối chi phí và thời gian điều trị thường bị lệch phải mạnh và có các điểm ngoại lai — trong trường hợp đó mean bị kéo lệch theo outlier, trong khi median bền vững hơn.
 
-**FrequencyEncoder**: Thay vì label encoding — vốn tạo thứ tự giả (artificial ordinal relationship) giữa các giá trị không có quan hệ thứ bậc — mỗi giá trị phân loại được ánh xạ thành tần suất tương đối của nó trong tập huấn luyện:
+**FrequencyEncoder**: Thay vì label encoding — vốn gán số nguyên tuần tự cho các giá trị và vô tình tạo ra thứ tự giả giữa các category không có quan hệ thứ bậc — phương pháp frequency encoding ánh xạ mỗi giá trị phân loại thành tần suất xuất hiện tương đối của nó trong tập huấn luyện. Nói cách khác, một mã DRG xuất hiện 500 lần trong 2.100 hồ sơ train sẽ được mã hóa thành xấp xỉ 0,238; một mã DRG chỉ xuất hiện 2 lần sẽ nhận giá trị xấp xỉ 0,001. Phương pháp này phù hợp đặc biệt với bài toán phát hiện bất thường vì giá trị hiếm gặp tự nhiên nhận giá trị số thấp — phản ánh trực giác rằng hành vi ít phổ biến tiềm ẩn rủi ro cao hơn. Các giá trị không xuất hiện trong tập train (*unseen values*) nhận tần suất bằng 0.
 
-$$\text{freq\_encode}(v) = \frac{\text{count}(v \text{ trong tập train})}{N_{\text{train}}}$$
-
-Phương pháp này phù hợp đặc biệt với bài toán phát hiện bất thường: giá trị hiếm gặp nhận giá trị số thấp, phản ánh trực giác rằng hành vi ít phổ biến tiềm ẩn rủi ro cao hơn. Giá trị không xuất hiện trong tập train (*unseen values*) được gán tần suất bằng 0.
-
-**Chuẩn hóa z-score**: Sau imputation và encoding, tất cả đặc trưng được chuẩn hóa về phân phối chuẩn ($\mu = 0$, $\sigma = 1$) bằng `StandardScaler`. Bước này cần thiết để các mô hình dựa trên khoảng cách Euclidean (CBLOF, OCSVM) không bị thiên vị bởi sự khác biệt thang đo giữa các đặc trưng.
+**Chuẩn hóa z-score**: Sau imputation và encoding, tất cả đặc trưng được đưa về cùng thang đo bằng cách trừ đi giá trị trung bình và chia cho độ lệch chuẩn của tập train. Bước này cần thiết để các mô hình dựa trên khoảng cách Euclidean như CBLOF và OCSVM không bị thiên vị bởi đặc trưng có giá trị tuyệt đối lớn hơn — chẳng hạn chi phí claim hàng nghìn đô sẽ áp đảo biến nhị phân 0/1 nếu không chuẩn hóa.
 
 ---
 
@@ -178,18 +170,14 @@ Bốn thuật toán phát hiện bất thường không giám sát được lự
 
 #### 4.2.1. Isolation Forest
 
-**Nguyên lý**: Isolation Forest [Liu et al., 2008] phát hiện bất thường dựa trên tính chất *cô lập*: điểm bất thường nằm cô lập trong không gian đặc trưng nên dễ bị tách biệt hơn — nghĩa là đường đi từ gốc cây đến điểm đó ngắn hơn — so với điểm bình thường nằm trong vùng dày đặc. Mô hình xây dựng một rừng gồm $T$ cây *iTree*, mỗi cây được tạo bằng cách lặp lại quá trình chọn ngẫu nhiên một đặc trưng và một ngưỡng tách trong phạm vi giá trị của đặc trưng đó. Điểm bất thường của quan sát $x$ được tính là:
-
-$$s(x, n) = 2^{-\frac{E[h(x)]}{c(n)}}$$
-
-trong đó $E[h(x)]$ là độ sâu trung bình của $x$ qua tất cả các cây và $c(n)$ là độ sâu trung bình kỳ vọng của một BST với $n$ điểm (hệ số chuẩn hóa).
+**Nguyên lý**: Isolation Forest [Liu et al., 2008] phát hiện bất thường dựa trên tính chất *cô lập*: một điểm dữ liệu bất thường thường nằm đơn độc, tách xa các điểm khác trong không gian đặc trưng, nên dễ bị "cô lập" hơn so với điểm bình thường nằm trong vùng dày đặc. Thuật toán xây dựng một rừng gồm nhiều cây quyết định ngẫu nhiên (*iTree*), trong đó mỗi cây được xây bằng cách lặp lại thao tác: chọn ngẫu nhiên một đặc trưng và một ngưỡng tách, rồi chia dữ liệu thành hai nhánh. Điểm bất thường của một hồ sơ được đo bằng độ sâu trung bình của hồ sơ đó qua toàn bộ rừng cây — hồ sơ nào bị cô lập sớm (đường đi từ gốc đến lá ngắn) sẽ nhận điểm bất thường cao. Điểm này được chuẩn hóa theo kích thước mẫu để so sánh được giữa các tập dữ liệu khác nhau.
 
 **Cấu hình tham số** được sử dụng trong thực nghiệm:
 
 | Tham số | Giá trị | Ý nghĩa |
 |---|---|---|
 | `n_estimators` | 200 | Số cây trong rừng; giá trị 200 cho kết quả ổn định hơn mặc định 100 |
-| `max_samples` | `"auto"` | Mỗi cây huấn luyện trên $\min(256, N_{\text{train}})$ mẫu con; không load toàn bộ tập |
+| `max_samples` | `"auto"` | Mỗi cây huấn luyện trên tối đa 256 mẫu con (hoặc toàn bộ nếu tập nhỏ hơn); giúp tăng tốc và đa dạng hóa các cây |
 | `max_features` | 1,0 | Tỉ lệ đặc trưng được xem xét khi tách; 1,0 nghĩa là dùng tất cả 94 đặc trưng |
 | `contamination` | 0,05 | Tỉ lệ bất thường kỳ vọng; dùng để xác định ngưỡng phân loại nhị phân |
 | `random_state` | 42 | Hạt nhân ngẫu nhiên đảm bảo tính tái lập |
@@ -201,11 +189,7 @@ trong đó $E[h(x)]$ là độ sâu trung bình của $x$ qua tất cả các c�
 
 #### 4.2.2. CBLOF — Cluster-Based Local Outlier Factor
 
-**Nguyên lý**: CBLOF [He et al., 2003] phân cụm dữ liệu thành các cụm lớn (*large clusters* — chứa phần lớn dữ liệu bình thường) và cụm nhỏ (*small clusters* — có thể là nhóm bất thường). Điểm bất thường của quan sát $x$ thuộc cụm $C_k$ được tính dựa trên tích của kích thước cụm và khoảng cách đến cụm lớn gần nhất:
-
-$$\text{CBLOF}(x) = |C_k| \times \text{dist}(x, C_{\text{nearest large}})$$
-
-Nếu $x$ thuộc cụm lớn, khoảng cách được tính đến tâm cụm đó; nếu thuộc cụm nhỏ, khoảng cách được tính đến cụm lớn gần nhất. Cơ chế này đặc biệt hiệu quả khi gian lận tập trung thành các nhóm nhỏ cô lập xa trung tâm hành vi bình thường.
+**Nguyên lý**: CBLOF [He et al., 2003] phân cụm toàn bộ dữ liệu huấn luyện thành các nhóm bằng thuật toán k-Means, sau đó phân loại các cụm thành hai loại: cụm lớn (*large clusters*) chứa phần lớn dữ liệu bình thường, và cụm nhỏ (*small clusters*) có thể là tập hợp các hành vi bất thường. Điểm bất thường của mỗi hồ sơ được tính dựa trên hai yếu tố kết hợp: kích thước của cụm mà hồ sơ đó thuộc về, và khoảng cách từ hồ sơ đến cụm lớn gần nhất. Hồ sơ nằm trong cụm nhỏ và ở xa cụm lớn sẽ nhận điểm bất thường cao nhất. Cơ chế này đặc biệt hiệu quả khi gian lận tập trung thành các nhóm nhỏ cô lập xa trung tâm hành vi bình thường, chẳng hạn một nhóm provider câu kết với nhau tạo ra các claim có đặc điểm tương đồng nhưng khác biệt hoàn toàn với phần lớn hồ sơ còn lại.
 
 **Cấu hình tham số** được sử dụng trong thực nghiệm:
 
@@ -218,26 +202,21 @@ Nếu $x$ thuộc cụm lớn, khoảng cách được tính đến tâm cụm �
 | `use_weights` | False | Không sử dụng trọng số khoảng cách (dùng khoảng cách thuần Euclidean) |
 | `random_state` | 42 | Hạt nhân ngẫu nhiên cho k-Means |
 
-**Quy ước điểm**: Thư viện PyOD sử dụng quy ước "điểm cao = bất thường hơn". `decision_function` trả về điểm CBLOF gốc; `threshold_` là giá trị ngưỡng học được từ tập train (giá trị phân vị $1 - \tau$ của phân phối điểm trên tập train).
+**Quy ước điểm**: Thư viện PyOD sử dụng quy ước "điểm cao = bất thường hơn". `decision_function` trả về điểm CBLOF gốc; `threshold_` là ngưỡng phân loại học được từ phân phối điểm trên tập train — cụ thể là giá trị phân vị thứ (1 − contamination) × 100, tức phân vị 95% khi contamination = 0,05.
 
 **Không gian tham số trong grid search**: `n_clusters` ∈ {4, 8, 12, 16}, `alpha` ∈ {0,8; 0,9}, `beta` ∈ {3, 5}, `contamination` ∈ {0,01; 0,03; 0,05; 0,10} — tổng 64 tổ hợp.
 
 #### 4.2.3. One-Class SVM (OCSVM)
 
-**Nguyên lý**: One-Class SVM [Schölkopf et al., 2001] học một siêu mặt phân cách (*hyperplane*) trong không gian đặc trưng kernel nhằm bao trọn vùng chứa $(1-\nu)$ phần dữ liệu huấn luyện, tách biệt với gốc tọa độ. Bài toán tối ưu hóa được phát biểu là:
-
-$$\min_{w, \xi, \rho} \frac{1}{2}\|w\|^2 - \rho + \frac{1}{\nu n}\sum_{i=1}^{n} \xi_i$$
-$$\text{s.t. } \langle w, \phi(x_i) \rangle \geq \rho - \xi_i, \quad \xi_i \geq 0$$
-
-trong đó $\phi(\cdot)$ là ánh xạ đặc trưng kernel và $\rho$ là khoảng cách từ gốc tọa độ đến siêu mặt phân cách. Quan sát có $\langle w, \phi(x) \rangle < \rho$ được phân loại là bất thường.
+**Nguyên lý**: One-Class SVM [Schölkopf et al., 2001] tiếp cận bài toán theo hướng học biên ranh giới: thay vì so sánh một điểm với các điểm khác, thuật toán học một đường ranh giới bao trọn vùng mà phần lớn dữ liệu huấn luyện nằm bên trong, rồi xem những điểm nằm ngoài ranh giới đó là bất thường. Về mặt kỹ thuật, OCSVM chiếu dữ liệu vào không gian chiều cao thông qua hàm kernel RBF, rồi tìm một siêu phẳng tách vùng dữ liệu bình thường ra khỏi gốc tọa độ với lề tối đa. Trong không gian gốc, ranh giới này tương ứng với một đường cong phi tuyến linh hoạt. Tham số *nu* kiểm soát mức độ nghiêm ngặt của biên: giá trị nhỏ tạo biên chặt hơn nhưng có thể bỏ sót bất thường nhẹ, giá trị lớn tạo biên rộng hơn nhưng tăng báo động giả.
 
 **Cấu hình tham số** được sử dụng trong thực nghiệm:
 
 | Tham số | Giá trị | Ý nghĩa |
 |---|---|---|
-| `kernel` | `"rbf"` | Kernel RBF (Radial Basis Function) $K(x,y) = \exp(-\gamma \|x-y\|^2)$; cho phép học biên phi tuyến |
-| `nu` | 0,05 | Cận trên của tỉ lệ điểm ngoại lệ (*outlier fraction*) và cận dưới của tỉ lệ support vector; đặt bằng `contamination` |
-| `gamma` | `"scale"` | $\gamma = 1 / (n\_features \times \text{Var}(X))$; tự động điều chỉnh theo số chiều và phương sai dữ liệu |
+| `kernel` | `"rbf"` | Kernel Radial Basis Function, cho phép học biên phi tuyến trong không gian chiều cao |
+| `nu` | 0,05 | Cận trên của tỉ lệ điểm ngoại lệ cho phép và cận dưới của tỉ lệ support vector; đặt bằng `contamination` |
+| `gamma` | `"scale"` | Tự động điều chỉnh độ nhạy của kernel theo số chiều và phương sai dữ liệu |
 
 *Lưu ý*: `random_state` không có tác dụng với `OneClassSVM` trong scikit-learn vì thuật toán là tất định (*deterministic*) với cùng tập dữ liệu.
 
@@ -247,11 +226,7 @@ trong đó $\phi(\cdot)$ là ánh xạ đặc trưng kernel và $\rho$ là kho�
 
 #### 4.2.4. ECOD — Empirical Cumulative Distribution-based Outlier Detection
 
-**Nguyên lý**: ECOD [Li et al., 2022] phát hiện bất thường dựa trên xác suất đuôi phân phối. Với mỗi chiều đặc trưng $j$, hàm phân phối tích lũy thực nghiệm (ECDF) được ước tính từ tập huấn luyện. Điểm bất thường của quan sát $x$ được tính là:
-
-$$\text{ECOD}(x) = -\sum_{j=1}^{d} \log \hat{p}_j(x_j)$$
-
-trong đó $\hat{p}_j(x_j) = \min\left[\hat{F}_j(x_j),\ 1 - \hat{F}_j(x_j)\right]$ là xác suất đuôi nhỏ nhất của giá trị $x_j$ theo chiều $j$, và $d$ là số chiều đặc trưng. Điểm cao thể hiện quan sát nằm ở vùng đuôi của nhiều đặc trưng đồng thời — dấu hiệu của bất thường đa biến.
+**Nguyên lý**: ECOD [Li et al., 2022] tiếp cận bài toán theo hướng thống kê phân phối: thay vì so sánh hồ sơ với cụm hay với biên ranh giới, ECOD hỏi câu hỏi đơn giản hơn — *hồ sơ này có nằm ở vùng "hiếm" của phân phối dữ liệu hay không?* Cụ thể, với mỗi đặc trưng, thuật toán ước tính phân phối thực nghiệm từ tập huấn luyện, rồi tính xác suất một hồ sơ có giá trị thấp bất thường (đuôi trái) hoặc cao bất thường (đuôi phải) theo từng chiều. Điểm bất thường tổng hợp được xây dựng bằng cách kết hợp thông tin đuôi phân phối từ tất cả các đặc trưng: hồ sơ có nhiều đặc trưng cùng nằm ở vùng cực trị một cách đồng thời sẽ nhận điểm bất thường cao. Ưu điểm của cách tiếp cận này là không giả định phân phối tham số, không cần siêu tham số phức tạp và hoạt động hiệu quả với dữ liệu nhiều chiều số.
 
 **Cấu hình tham số** được sử dụng trong thực nghiệm:
 
@@ -326,12 +301,12 @@ Mỗi mô hình sử dụng thang điểm native khác nhau, do đó hệ thốn
 
 **Bảng 4.3.** Quy tắc chuyển đổi điểm bất thường sang mức rủi ro theo từng mô hình.
 
-| Mô hình | Thang điểm native | Công thức risk% | Phân loại |
+| Mô hình | Thang điểm native | Cách tính risk% | Phân loại |
 |---|---|---|---|
-| Isolation Forest | `decision_function` ∈ [−0,10; +0,14], dương = bình thường | $\text{risk} = \text{clip}\!\left(\left(0{,}5 - \frac{s}{2 \cdot |\text{offset\_}|}\right) \times 100,\ 0,\ 100\right)$ | HIGH: $s < 0$; MEDIUM: $0 \leq s < \text{band}$; LOW: $s \geq \text{band}$ |
-| OCSVM | `decision_function`, dương = bình thường | Cùng công thức IF với `scale = |offset_|` | HIGH: $s < 0$; MEDIUM: $0 \leq s < \text{band}$; LOW: $s \geq \text{band}$ |
-| CBLOF (PyOD) | Cao = bất thường, `threshold_` ≈ 8,28 | $\text{risk} = \text{clip}\!\left(\frac{s}{\text{threshold\_}} \times 50,\ 0,\ 100\right)$ | HIGH: $s \geq 1{,}5 \times \text{thr}$; MEDIUM: $\text{thr} \leq s < 1{,}5 \times \text{thr}$; LOW: $s < \text{thr}$ |
-| ECOD (PyOD) | Cao = bất thường, `threshold_` ≈ 67,12 | Cùng công thức CBLOF | HIGH: $s \geq 1{,}5 \times \text{thr}$; MEDIUM: $\text{thr} \leq s < 1{,}5 \times \text{thr}$; LOW: $s < \text{thr}$ |
+| Isolation Forest | Dương = bình thường, âm = bất thường; khoảng [−0,10; +0,14] | Điểm 0% ứng với phía bình thường cực đại; 50% ứng với ranh giới quyết định; 100% ứng với phía bất thường cực đại — nội suy tuyến tính theo biên độ native của mô hình | HIGH: điểm < 0; MEDIUM: điểm nằm ngay quanh ranh giới 0; LOW: điểm > 0 |
+| OCSVM | Dương = bình thường, âm = bất thường | Cùng nguyên lý IF, dùng biên độ offset của mô hình làm thước đo | HIGH: điểm < 0; MEDIUM: điểm nằm ngay quanh ranh giới 0; LOW: điểm > 0 |
+| CBLOF (PyOD) | Cao = bất thường; `threshold_` ≈ 8,28 | Điểm tại ngưỡng `threshold_` ứng với 50% rủi ro; điểm gấp đôi ngưỡng ứng với 100% | HIGH: ≥ 1,5 × ngưỡng; MEDIUM: từ ngưỡng đến 1,5 × ngưỡng; LOW: dưới ngưỡng |
+| ECOD (PyOD) | Cao = bất thường; `threshold_` ≈ 67,12 | Cùng nguyên lý CBLOF | HIGH: ≥ 1,5 × ngưỡng; MEDIUM: từ ngưỡng đến 1,5 × ngưỡng; LOW: dưới ngưỡng |
 
 Điểm rủi ro ở cấp hồ sơ được tổng hợp thành **điểm rủi ro cấp nhà cung cấp** theo trung bình có trọng số, trong đó hồ sơ có risk% > 50 được tăng trọng số 1,5 lần. Nhà cung cấp có điểm tổng hợp > 70% được tự động chuyển sang hàng đợi điều tra với SLA từ 4–24 giờ tùy mức độ nghiêm trọng.
 
@@ -374,7 +349,7 @@ Chỉ số Precision@K được tính với K ∈ {0,5%; 1%; 2%; 5%} (tương �
 
 **Isolation Forest** thể hiện là baseline mạnh và cân bằng: Precision cao nhất (0,380), đồng nghĩa với ít báo động giả nhất trong số các mô hình. Điều này quan trọng trong bối cảnh triển khai thực tế khi tài nguyên điều tra có hạn và chi phí điều tra sai cũng đáng kể. FP = 31 (thấp thứ hai sau CBLOF với FP = 30).
 
-**CBLOF** cho thấy ROC-AUC tương đương Isolation Forest (0,828 so với 0,824) nhưng F1 thấp hơn do cả Precision và Recall đều thấp hơn một chút. Nhược điểm rõ nhất là thời gian chạy 8,327 giây — cao gấp 12–34 lần các mô hình còn lại — phản ánh gánh nặng tính toán của bước phân cụm k-Means ($\mathcal{O}(n \cdot k \cdot d \cdot \text{iter})$) bên trong. Tuy nhiên, cần lưu ý rằng trên tập dữ liệu đầy đủ (không giới hạn mẫu), CBLOF đạt F1 = 0,458 và ROC-AUC = 0,906 — cho thấy mô hình này được lợi nhiều hơn từ lượng dữ liệu lớn hơn do chất lượng phân cụm cải thiện.
+**CBLOF** cho thấy ROC-AUC tương đương Isolation Forest (0,828 so với 0,824) nhưng F1 thấp hơn do cả Precision và Recall đều thấp hơn một chút. Nhược điểm rõ nhất là thời gian chạy 8,327 giây — cao gấp 12–34 lần các mô hình còn lại — phản ánh gánh nặng tính toán của bước phân cụm k-Means bên trong, vốn phải tính lại toàn bộ khoảng cách và trung tâm cụm qua nhiều vòng lặp. Tuy nhiên, cần lưu ý rằng trên tập dữ liệu đầy đủ (không giới hạn mẫu), CBLOF đạt F1 = 0,458 và ROC-AUC = 0,906 — cho thấy mô hình này được lợi nhiều hơn từ lượng dữ liệu lớn hơn vì các cụm được xác định chính xác hơn khi có nhiều mẫu.
 
 **OCSVM** cho kết quả yếu nhất với ROC-AUC thấp nhất (0,788), F1 thấp nhất (0,333) và Precision@0,5% thấp nhất (0,250). Xu hướng tạo nhiều báo động giả (FP = 57, cao nhất) phù hợp với dự đoán lý thuyết: OCSVM học ranh giới trong không gian kernel 94 chiều gặp khó khăn do *curse of dimensionality*, khiến biên ranh giới học được kém chính xác.
 
@@ -417,11 +392,7 @@ Bốn loại biểu đồ được tạo tự động và lưu vào thư mục `
 
 ### 5.7. Danh sách Hồ sơ Ưu tiên Điều tra
 
-Hệ thống xuất danh sách 200 hồ sơ có rủi ro cao nhất (`top_suspicious_claims.csv`) được xếp hạng theo **điểm tổ hợp** (*ensemble rank score*) — trung bình thứ hạng phần trăm (*percentile rank*) của từng mô hình cho mỗi hồ sơ:
-
-$$\text{ensemble\_rank}(x) = \frac{1}{M} \sum_{m=1}^{M} \text{rank\_pct}_m(x)$$
-
-trong đó $M$ là số mô hình và $\text{rank\_pct}_m(x)$ là vị trí phần trăm của hồ sơ $x$ trong phân phối điểm của mô hình $m$. Cách tổng hợp này trung hòa hoàn toàn sự khác biệt về thang đo giữa các mô hình và ưu tiên các hồ sơ được đánh giá nhất quán là bất thường bởi nhiều mô hình độc lập — nâng cao độ tin cậy của danh sách điều tra.
+Hệ thống xuất danh sách 200 hồ sơ có rủi ro cao nhất (`top_suspicious_claims.csv`) được xếp hạng theo **điểm tổ hợp** (*ensemble rank score*). Thay vì cộng trực tiếp điểm của các mô hình — vốn có thang đo hoàn toàn khác nhau (ECOD cho điểm hàng chục, IsolationForest cho điểm lẻ phần trăm) — mỗi mô hình trước tiên chuyển điểm thô của từng hồ sơ sang thứ hạng phần trăm trong phân phối của chính nó. Sau đó, điểm tổ hợp cuối cùng là trung bình của các thứ hạng phần trăm đó qua tất cả mô hình. Cách tiếp cận này trung hòa hoàn toàn sự khác biệt về thang đo, đồng thời ưu tiên các hồ sơ được đánh giá nhất quán là bất thường bởi nhiều mô hình độc lập — nghĩa là hồ sơ nào bị tất cả mô hình xếp vào nhóm đáng ngờ sẽ đứng đầu danh sách, nâng cao độ tin cậy cho điều tra viên.
 
 ---
 
@@ -437,7 +408,7 @@ Kết quả cũng cho thấy sự đánh đổi rõ ràng giữa các mô hình:
 
 1. **Nhãn mô phỏng**: Kết quả đánh giá phụ thuộc hoàn toàn vào chất lượng các quy tắc tạo nhãn. Hiệu suất thực tế trên gian lận được xác minh có thể khác biệt đáng kể và chỉ có thể đánh giá khi có nhãn thực tế từ đơn vị kiểm toán chuyên nghiệp.
 
-2. **OCSVM không mở rộng được**: Độ phức tạp tính toán $\mathcal{O}(n^2)$ đến $\mathcal{O}(n^3)$ khiến OCSVM không thực tiễn khi tập dữ liệu vượt ngưỡng 30.000 hồ sơ.
+2. **OCSVM không mở rộng được**: Chi phí tính toán của OCSVM tăng rất nhanh theo số lượng mẫu — khi dữ liệu tăng gấp đôi, thời gian chạy có thể tăng gấp bốn hoặc tám lần — khiến thuật toán không thực tiễn khi tập dữ liệu vượt ngưỡng 30.000 hồ sơ.
 
 3. **Khả năng giải thích hạn chế**: Bốn thuật toán đều thuộc nhóm hộp đen hoặc nửa hộp đen. Hệ thống cung cấp giải thích dựa trên quy tắc cứng (giá trị ngưỡng của một số đặc trưng cụ thể), chưa áp dụng phương pháp model-agnostic như SHAP hay LIME để lượng hóa đóng góp của từng đặc trưng.
 
