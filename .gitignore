@@ -5,4 +5,5 @@ __pycache__/
 data/raw/*.csv
 outputs/*.csv
 outputs/*.png
-models/*.joblib
+*.joblib
+models/
