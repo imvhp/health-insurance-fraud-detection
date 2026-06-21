@@ -1,0 +1,5 @@
+rank,model,suitability_score,reason
+1,ECOD,86.0,fast distribution-tail detector; numeric-heavy data fits ECOD distribution-tail assumptions; efficient on large datasets; low expected anomaly rate fits tail detection
+2,IsolationForest,81.0,good general-purpose baseline for mixed claim data; scales well to medium/large datasets; handles moderately high-dimensional feature sets
+3,CBLOF,64.0,useful when anomalies are small clusters far from large clusters; dataset size is suitable for cluster-based scoring; very high-dimensional data can weaken cluster distance quality
+4,OCSVM,31.0,captures nonlinear normal-data boundary; large dataset makes OCSVM slow and less practical; higher-dimensional data can reduce OCSVM stability

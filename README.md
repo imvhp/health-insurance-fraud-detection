@@ -222,41 +222,43 @@ F1-score: 0.4582
 ROC-AUC: 0.9059
 ```
 
-## 9. Retrain Với Data Mới Sau 3 Ngày
+## 9. Quy Trình Retrain Tự Động (Lấy dữ liệu từ Web)
 
-Nếu có dữ liệu mới thu thập được, đặt các file CSV vào:
+Hệ thống cung cấp một luồng (pipeline) hoàn chỉnh để tự động xuất dữ liệu (export) các claim mới nhất từ cơ sở dữ liệu MySQL của project Web sang hệ thống ML, sau đó tiến hành retrain tự động.
 
-```text
-data/new/
+### Chạy tự động toàn bộ (Khuyến nghị)
+Bạn chỉ cần chạy file `.bat` đã được cấu hình sẵn ở thư mục gốc:
+
+```bash
+retrain_with_export.bat
 ```
 
-Chạy retrain với các file mới trong 3 ngày gần nhất:
+**Script này thực hiện 2 bước:**
+1. **Xuất Dữ Liệu:** Gọi `src\export_claims_csv.py` để kết nối vào database MySQL, lấy các claim mới và lưu thành file `data/new/claims_YYYYMMDD.csv`.
+2. **Retrain:** Gọi `src\retrain_cycle.py` để gộp data cũ và mới, loại bỏ trùng lặp, chạy lại toàn bộ quy trình auto-selection và chọn ra model tốt nhất.
+
+**Các tùy chọn chạy nâng cao:**
+```bash
+retrain_with_export.bat --since 7d          # Lấy dữ liệu 7 ngày qua
+retrain_with_export.bat --since 2026-06-01  # Lấy từ ngày cụ thể
+```
+
+### Thiết lập chạy tự động định kỳ (Cronjob/Task Scheduler)
+Bạn có thể cài đặt `Windows Task Scheduler` để tự động retrain hàng ngày/tuần:
+- **Program/script:** `E:\SCHOOL\PTL\retrain_with_export.bat`
+- **Start in:** `E:\SCHOOL\PTL`
+
+### Chạy thủ công từng bước (Manual)
+Nếu bạn không dùng MySQL mà có sẵn file CSV mới, chỉ cần thả các file CSV đó vào thư mục `data/new/` và chạy lệnh sau (retrain với data của 3 ngày gần nhất):
 
 ```bash
 python src\retrain_cycle.py --days 3 --label-mode synthetic
 ```
 
-Script sẽ:
-
-1. Đọc data nền hiện tại.
-2. Tìm file CSV mới trong `data/new/`.
-3. Gộp data cũ và data mới.
-4. Drop duplicate theo `CLM_ID` nếu có.
-5. Chạy lại experiment với `--model-mode auto`.
-6. Chọn lại model phù hợp.
-7. Lưu kết quả theo timestamp.
-
-Kết quả retrain nằm tại:
-
+Kết quả retrain luôn được tự động lưu theo thời gian tại:
 ```text
-outputs/retrain/<timestamp>/
-models/retrain/<timestamp>/
-```
-
-Nếu muốn bắt buộc phải có data mới thì dùng:
-
-```bash
-python src\retrain_cycle.py --days 3 --require-new-data
+outputs/retrain/<timestamp>/  (Lưu ảnh ROC, biểu đồ, JSON report...)
+models/retrain/<timestamp>/   (Lưu model .joblib)
 ```
 
 ## 10. Chạy Tuning Tham Số
@@ -284,7 +286,26 @@ Dữ liệu CMS Synthetic thường không có nhãn gian lận thật. Vì vậ
 
 Không nên nói hệ thống đã phát hiện “gian lận thật” nếu chưa có nhãn fraud thực tế được xác minh bởi chuyên gia.
 
-## 12. Lệnh Test Khuyến Nghị
+## 12. Chạy API Server (Phục vụ Frontend)
+
+Hệ thống cung cấp một FastAPI backend để frontend có thể gọi suy luận (predict) và lấy dữ liệu hiển thị.
+
+Lệnh khởi động server:
+
+```bash
+python -m uvicorn src.app.api:app --reload --port 8000
+```
+
+Các endpoint API chính:
+- `POST /predict`: Dự đoán gian lận cho 1 hồ sơ yêu cầu bồi thường (claim).
+- `POST /predict_batch`: Dự đoán cho nhiều claim cùng lúc.
+- `GET /model/status`: Kiểm tra trạng thái model hiện hành.
+- `GET /model/history`: Trả về danh sách lịch sử retrain và URL của các biểu đồ đánh giá.
+- `POST /explain`: Giải thích quyết định của model sử dụng SHAP.
+
+*Lưu ý:* Các file hình ảnh đánh giá (ROC, PR Curve...) được phục vụ tĩnh tự động qua đường dẫn `/outputs/` (ví dụ: `http://localhost:8000/outputs/retrain/20260621_155802/roc_curves.png`).
+
+## 13. Lệnh Test Khuyến Nghị
 
 Test nhanh:
 

@@ -1,0 +1,27 @@
+{
+  "data_profile": {
+    "n_rows": 66707,
+    "n_features": 94,
+    "n_numeric": 77,
+    "n_categorical": 17,
+    "categorical_ratio": 0.18085106382978725,
+    "missing_ratio": 0.5487564066293085,
+    "contamination": 0.05,
+    "has_labels": true
+  },
+  "models_to_run": [
+    "IsolationForest",
+    "CBLOF",
+    "OCSVM",
+    "ECOD"
+  ],
+  "heuristic_selected_model": "ECOD",
+  "metric_selection": {
+    "selected_model": "CBLOF",
+    "selection_basis": "evaluation_metrics",
+    "primary_metric": "f1_score",
+    "f1_score": 0.5344449319877139,
+    "roc_auc": 0.9295037797062089,
+    "average_precision": 0.49202837877531225
+  }
+}

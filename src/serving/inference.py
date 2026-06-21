@@ -59,26 +59,60 @@ from model_selection import build_data_profile, score_models_for_profile
 # ============ MODEL DIRECTORY DETECTION ============
 
 def find_model_dir() -> str:
-    """Locates the directory containing preprocessor.joblib and model files."""
-    possible_dirs = [
-        os.path.join(PROJECT_ROOT, "models", "smoke_check"),
-        os.path.join(PROJECT_ROOT, "models", "test_auto"),
-        os.path.join(PROJECT_ROOT, "models", "auto_check"),
-        os.path.join(PROJECT_ROOT, "models"),
-    ]
+    """Locates the directory containing preprocessor.joblib and model files.
 
-    # Check retrain subdirectory if any
+    Priority order:
+      1. Latest retrain folder (models/retrain/<timestamp>/) — sorted by
+         directory name descending so the newest timestamp wins.
+      2. Baseline model (models/baseline/)
+      3. Bare models/ root (last resort)
+    """
+    # 1. Retrain folders — newest first (folder names are YYYYMMDD_HHMMSS)
     retrain_root = os.path.join(PROJECT_ROOT, "models", "retrain")
     if os.path.exists(retrain_root):
-        subdirs = [os.path.join(retrain_root, d) for d in os.listdir(retrain_root)]
-        subdirs = [d for d in subdirs if os.path.isdir(d)]
-        subdirs.sort(key=os.path.getmtime, reverse=True)
-        possible_dirs = subdirs + possible_dirs
+        subdirs = sorted(
+            [d for d in os.listdir(retrain_root)
+             if os.path.isdir(os.path.join(retrain_root, d))],
+            reverse=True,
+        )
+        for d in subdirs:
+            path = os.path.join(retrain_root, d)
+            if os.path.exists(os.path.join(path, "preprocessor.joblib")):
+                return path
 
-    for d in possible_dirs:
-        if os.path.exists(d) and os.path.exists(os.path.join(d, "preprocessor.joblib")):
-            return d
+    # 2. Baseline model
+    baseline = os.path.join(PROJECT_ROOT, "models", "baseline")
+    if os.path.exists(os.path.join(baseline, "preprocessor.joblib")):
+        return baseline
+
+    # 3. Last resort
     return os.path.join(PROJECT_ROOT, "models")
+
+
+def get_model_version(model_dir: str) -> str:
+    """Derive a human-readable version string from the model directory path.
+
+    * Retrain folders  → 1.0.X (where X is chronological order)
+    * Baseline folder   → "1.0.0"
+    * Anything else     → "1.0.0"
+    """
+    dirname = os.path.basename(model_dir)
+    if dirname == "baseline":
+        return "1.0.0"
+    
+    retrain_root = os.path.join(PROJECT_ROOT, "models", "retrain")
+    if os.path.exists(retrain_root):
+        subdirs = sorted(
+            [d for d in os.listdir(retrain_root)
+             if os.path.isdir(os.path.join(retrain_root, d))]
+        )
+        try:
+            index = subdirs.index(dirname)
+            return f"1.0.{index + 1}"
+        except ValueError:
+            pass
+            
+    return "1.0.0"
 
 
 # ============ LAZY GLOBAL LOADING ============
@@ -285,6 +319,7 @@ def predict_claims(input_data: list[dict], contamination: float = 0.05) -> dict:
 
     return {
         "model_selected": selected_model_name,
+        "model_version": get_model_version(model_dir),
         "model_directory": model_dir,
         "suitability_report": suitability_report,
         "predictions": results,

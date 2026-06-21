@@ -22,6 +22,7 @@ import os
 from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 # Suppress sklearn imputer warning for columns with no observed values during single-claim inference
@@ -51,6 +52,11 @@ app = FastAPI(
     description="ML serving API for detecting fraudulent claims with dynamic model selection",
     version="1.0.0"
 )
+
+# Mount static files for outputs
+OUTPUTS_DIR = os.path.join(PROJECT_ROOT, "outputs")
+if os.path.exists(OUTPUTS_DIR):
+    app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
 
 # ============ REQUEST/RESPONSE SCHEMAS ============
 
@@ -91,6 +97,7 @@ class PredictionResponse(BaseModel):
     should_alert: bool = Field(..., description="Should create fraud alert? (risk_percentage > 70)")
     provider_id: str = Field(..., description="Provider ID from claim")
     model_selected: str = Field(..., description="Model chosen for this prediction")
+    model_version: str = Field("unknown", description="Model version (retrain timestamp or 'baseline')")
     timestamp: datetime = Field(default_factory=datetime.now)
 
 class BatchPredictionResponse(BaseModel):
@@ -105,10 +112,24 @@ class ModelStatusResponse(BaseModel):
     """Response for model status check"""
     status: str
     model_directory: str
+    model_version: str = "unknown"
     features_count: int
     ready: bool
     loaded_models: List[str]
     timestamp: datetime
+
+class RetrainHistoryItem(BaseModel):
+    version: str
+    timestamp: str
+    model_directory: str
+    roc_curves_url: Optional[str]
+    pr_curves_url: Optional[str]
+    confusion_matrices_url: Optional[str]
+    score_distributions_url: Optional[str]
+
+class ModelHistoryResponse(BaseModel):
+    baseline_version: str
+    retrains: List[RetrainHistoryItem]
 
 # ============ HEALTH CHECK ENDPOINTS ============
 
@@ -135,10 +156,12 @@ def model_status():
     """Check if preprocessor and models are loaded and ready"""
     try:
         preprocessor, models, numeric_cols, categorical_cols, model_dir = get_serving_artifacts()
+        from src.serving.inference import get_model_version
         total_features = len(numeric_cols) + len(categorical_cols)
         return ModelStatusResponse(
             status="ready",
             model_directory=model_dir,
+            model_version=get_model_version(model_dir),
             features_count=total_features,
             ready=True,
             loaded_models=list(models.keys()),
@@ -148,11 +171,55 @@ def model_status():
         return ModelStatusResponse(
             status=f"error: {str(e)}",
             model_directory="N/A",
+            model_version="unknown",
             features_count=0,
             ready=False,
             loaded_models=[],
             timestamp=datetime.now()
         )
+
+@app.get("/model/history", response_model=ModelHistoryResponse)
+def model_history():
+    """Get history of retrained models and their evaluation image URLs."""
+    from src.serving.inference import get_model_version
+    
+    retrains = []
+    retrain_root = os.path.join(PROJECT_ROOT, "outputs", "retrain")
+    
+    if os.path.exists(retrain_root):
+        # Sort chronologically
+        subdirs = sorted(
+            [d for d in os.listdir(retrain_root)
+             if os.path.isdir(os.path.join(retrain_root, d))]
+        )
+        
+        for d in subdirs:
+            # Reconstruct the model dir path to get version
+            model_dir = os.path.join(PROJECT_ROOT, "models", "retrain", d)
+            version = get_model_version(model_dir)
+            
+            # Check for images in outputs
+            out_dir = os.path.join(retrain_root, d)
+            
+            def get_url(filename):
+                if os.path.exists(os.path.join(out_dir, filename)):
+                    return f"/outputs/retrain/{d}/{filename}"
+                return None
+                
+            retrains.append(RetrainHistoryItem(
+                version=version,
+                timestamp=d,
+                model_directory=model_dir,
+                roc_curves_url=get_url("roc_curves.png"),
+                pr_curves_url=get_url("pr_curves.png"),
+                confusion_matrices_url=get_url("confusion_matrices.png"),
+                score_distributions_url=get_url("score_distributions.png")
+            ))
+            
+    return ModelHistoryResponse(
+        baseline_version="1.0.0",
+        retrains=retrains
+    )
 
 # ============ PREDICTION ENDPOINTS ============
 
@@ -167,6 +234,7 @@ def get_prediction(claim: ClaimData):
         res = predict_claims([claim_dict])
         
         model_name = res["model_selected"]
+        model_version = res.get("model_version", "unknown")
         pred = res["predictions"][0]
         
         # Calculate if should alert
@@ -179,6 +247,7 @@ def get_prediction(claim: ClaimData):
             should_alert=should_alert,
             provider_id=pred["provider_id"],
             model_selected=pred["model_selected"],
+            model_version=model_version,
             timestamp=datetime.now()
         )
     except Exception as e:
@@ -198,6 +267,7 @@ def predict_batch(claims: List[ClaimData]):
         res = predict_claims(claims_dicts)
         
         model_name = res["model_selected"]
+        model_version = res.get("model_version", "unknown")
         predictions = []
         alerts_count = 0
         anomaly_count = 0
@@ -212,6 +282,7 @@ def predict_batch(claims: List[ClaimData]):
                 should_alert=should_alert,
                 provider_id=pred["provider_id"],
                 model_selected=pred["model_selected"],
+                model_version=model_version,
                 timestamp=datetime.now()
             )
             predictions.append(response_pred)
