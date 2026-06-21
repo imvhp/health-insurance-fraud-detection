@@ -230,7 +230,7 @@ Hệ thống cung cấp một luồng (pipeline) hoàn chỉnh để tự độn
 Bạn chỉ cần chạy file `.bat` đã được cấu hình sẵn ở thư mục gốc:
 
 ```bash
-retrain_with_export.bat
+.\retrain_with_export.bat
 ```
 
 **Script này thực hiện 2 bước:**
