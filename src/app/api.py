@@ -21,7 +21,7 @@ import sys
 import os
 from datetime import datetime
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -130,6 +130,16 @@ class RetrainHistoryItem(BaseModel):
 class ModelHistoryResponse(BaseModel):
     baseline_version: str
     retrains: List[RetrainHistoryItem]
+
+class RetrainRequest(BaseModel):
+    """Request schema for triggering a model retrain"""
+    since: Optional[str] = Field(None, description="Export claims since this date/duration (e.g. '7d', '2026-06-01')")
+    days: Optional[int] = Field(4, description="Number of days of new data to process for retraining")
+
+class RetrainResponse(BaseModel):
+    """Response schema for retrain endpoint"""
+    status: str
+    message: str
 
 # ============ HEALTH CHECK ENDPOINTS ============
 
@@ -374,4 +384,49 @@ def explain_prediction(claim: ClaimData):
             status_code=500,
             detail=f"Explanation failed: {str(e)}"
         )
+
+# ============ MANAGEMENT ENDPOINTS ============
+
+@app.post("/retrain", response_model=RetrainResponse)
+def trigger_retrain(background_tasks: BackgroundTasks, req: Optional[RetrainRequest] = None):
+    """
+    Trigger the retrain pipeline in the background.
+    This will:
+    1. Export new claims from the database
+    2. Run the retraining cycle with the new data
+    """
+    if req is None:
+        req = RetrainRequest()
+        
+    def run_retrain_pipeline(since: Optional[str], days: int):
+        import subprocess
+        print(f"Starting retrain pipeline background task (since={since}, days={days})")
+        
+        # Step 1: Export
+        export_cmd = [sys.executable, "src/export_claims_csv.py"]
+        if since:
+            export_cmd.extend(["--since", since])
+            
+        try:
+            print(f"Running export: {' '.join(export_cmd)}")
+            subprocess.run(export_cmd, cwd=PROJECT_ROOT, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Export failed: {e}")
+            # Continuing anyway as per bat script
+            
+        # Step 2: Retrain
+        retrain_cmd = [sys.executable, "src/retrain_cycle.py", "--new-data-dir", "data/new", "--days", str(days)]
+        try:
+            print(f"Running retrain: {' '.join(retrain_cmd)}")
+            subprocess.run(retrain_cmd, cwd=PROJECT_ROOT, check=True)
+            print("Retrain pipeline completed successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"Retrain cycle failed: {e}")
+
+    background_tasks.add_task(run_retrain_pipeline, req.since, req.days)
+    
+    return RetrainResponse(
+        status="accepted",
+        message="Retrain pipeline started in background. Check server logs for progress."
+    )
 
