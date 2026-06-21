@@ -160,18 +160,52 @@ def test_predict_batch():
         return False
 
 def test_explain():
-    print_section("TEST 7: Explain Prediction (POST /explain)")
+    print_section("TEST 7: Explain Prediction (POST /explain) [SHAP]")
     try:
         response = requests.post(f"{API_URL}/explain", json=HIGH_RISK_CLAIM)
         data = response.json()
         print_result("POST /explain", data, response.status_code)
         assert response.status_code == 200
-        assert "top_factors" in data, "Missing top_factors in explain response"
-        assert "summary" in data, "Missing summary in explain response"
-        assert "confidence" in data, "Missing confidence in explain response"
-        assert "method" in data, "Missing method in explain response"
-        assert "provider_id" in data, "Missing provider_id in explain response"
-        print(f"  [ASSERT] explain method={data['method']}")
+
+        # ── Top-level fields ──────────────────────────────────────────────────
+        assert "top_factors" in data,  "Missing top_factors in explain response"
+        assert "summary"     in data,  "Missing summary in explain response"
+        assert "confidence"  in data,  "Missing confidence in explain response"
+        assert "method"      in data,  "Missing method in explain response"
+        assert "provider_id" in data,  "Missing provider_id in explain response"
+
+        # ── method must be "SHAP" or "Heuristic" ─────────────────────────────
+        assert data["method"] in ("SHAP", "Heuristic"), \
+            f"Unexpected explain method: {data['method']}"
+
+        # ── confidence must be in [0, 1] ──────────────────────────────────────
+        assert 0.0 <= data["confidence"] <= 1.0, \
+            f"confidence out of range: {data['confidence']}"
+
+        # ── top_factors schema validation ─────────────────────────────────────
+        assert isinstance(data["top_factors"], list), "top_factors should be a list"
+        for i, factor in enumerate(data["top_factors"]):
+            assert "feature"   in factor, f"top_factors[{i}] missing 'feature'"
+            assert "impact"    in factor, f"top_factors[{i}] missing 'impact'"
+            assert "direction" in factor, f"top_factors[{i}] missing 'direction'"
+            assert "value"     in factor, f"top_factors[{i}] missing 'value'"
+            assert factor["direction"] in (
+                "increases anomaly risk", "decreases anomaly risk"
+            ), f"top_factors[{i}] unexpected direction: {factor['direction']}"
+            assert factor["impact"] >= 0, \
+                f"top_factors[{i}] impact should be non-negative: {factor['impact']}"
+
+        # ── summary should be a non-empty string ─────────────────────────────
+        assert isinstance(data["summary"], str) and len(data["summary"]) > 0, \
+            "summary should be a non-empty string"
+
+        # ── print per-factor breakdown for easy debugging ─────────────────────
+        print(f"\n  [ASSERT] method={data['method']}  confidence={data['confidence']}")
+        print(f"  [ASSERT] provider_id={data['provider_id']}")
+        for i, f in enumerate(data["top_factors"]):
+            print(f"  [FACTOR {i+1}] {f['feature']}: impact={f['impact']}  "
+                  f"dir={f['direction']}  val={f['value']}")
+
         return True
     except AssertionError as e:
         print(f"[FAIL] Assertion: {e}")

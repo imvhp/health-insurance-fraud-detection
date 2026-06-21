@@ -5,15 +5,15 @@ FASTAPI SERVING APPLICATION - Backend API for CMS Fraud Detection (PTL)
 This API serves predictions from the dynamically selected anomaly detection model.
 
 Run with:
-    python -m uvicorn src.app.api:app --reload --port 8002
+    python -m uvicorn src.app.api:app --reload --port 8000
 
 Test endpoints:
-    GET  http://localhost:8002/
-    GET  http://localhost:8002/health
-    GET  http://localhost:8002/model/status
-    POST http://localhost:8002/predict
-    POST http://localhost:8002/predict_batch
-    POST http://localhost:8002/explain
+    GET  http://localhost:8000/
+    GET  http://localhost:8000/health
+    GET  http://localhost:8000/model/status
+    POST http://localhost:8000/predict
+    POST http://localhost:8000/predict_batch
+    POST http://localhost:8000/explain
 """
 
 import warnings
@@ -42,6 +42,7 @@ if SRC_DIR not in sys.path:
 
 # Import serving and logic modules
 from src.serving.inference import predict_claims, get_serving_artifacts
+from src.serving.shap_explainer import explain_claim
 from src.risk_scoring import calculate_provider_risk_score
 from src.alert_logic import should_create_alert
 
@@ -236,69 +237,67 @@ def predict_batch(claims: List[ClaimData]):
 @app.post("/explain")
 def explain_prediction(claim: ClaimData):
     """
-    Generate explanation for a prediction.
-    Uses rule-based logic to trace risk factors.
+    Generate a SHAP-powered explanation for a single claim prediction.
+
+    The endpoint re-uses the inference pipeline to obtain the preprocessed
+    feature vector and then delegates to shap_explainer.explain_claim().
+    Falls back to a heuristic explanation when SHAP is unavailable.
     """
     try:
-        claim_dict = claim.dict()
-        res = predict_claims([claim_dict])
+        import numpy as np
 
+        claim_dict = claim.dict()
+
+        # ── 1. Load serving artifacts (cached after first call) ──────────────
+        preprocessor, models, numeric_cols, categorical_cols, _ = get_serving_artifacts()
+
+        # ── 2. Run inference to get risk score + selected model ──────────────
+        res = predict_claims([claim_dict])
         pred = res["predictions"][0]
         risk_percentage = pred["risk_percentage"]
-        model_name = pred["model_selected"]
-        is_anomaly = risk_percentage > 50.0
+        model_name      = pred["model_selected"]
+        provider_id     = pred["provider_id"]
+        clf             = models[model_name]
 
-        if not is_anomaly:
-            return {
-                "top_factors": [],
-                "summary": "Claim falls within normal distribution parameters. Not flagged.",
-                "confidence": round((100 - risk_percentage) / 100, 2),
-                "method": f"Heuristic / {model_name}",
-                "provider_id": pred["provider_id"]
-            }
+        # ── 3. Build the preprocessed feature vector for SHAP ────────────────
+        import pandas as pd
+        from features import add_domain_features
 
-        # Build rule-based explanation for anomaly
-        top_factors = []
-        if claim.CLM_PMT_AMT is not None and claim.CLM_PMT_AMT > 5000:
-            # Calculate impact dynamically based on amount over 5000
-            base_impact = 0.20
-            dynamic_impact = min(0.60, round(base_impact + ((claim.CLM_PMT_AMT - 5000) / 100000.0), 2))
-            top_factors.append({
-                "feature": "CLM_PMT_AMT",
-                "impact": dynamic_impact,
-                "direction": "high",
-                "value": claim.CLM_PMT_AMT
-            })
-            
-        if claim.CLM_UTLZTN_DAY_CNT is not None and claim.CLM_UTLZTN_DAY_CNT > 7:
-            # Calculate impact dynamically based on days over 7
-            base_impact = 0.15
-            dynamic_impact = min(0.50, round(base_impact + ((claim.CLM_UTLZTN_DAY_CNT - 7) / 50.0), 2))
-            top_factors.append({
-                "feature": "CLM_UTLZTN_DAY_CNT",
-                "impact": dynamic_impact,
-                "direction": "high",
-                "value": claim.CLM_UTLZTN_DAY_CNT
-            })
-            
-        # Sort factors by impact
-        top_factors.sort(key=lambda x: x["impact"], reverse=True)
+        df        = pd.DataFrame([claim_dict])
+        df_feats  = add_domain_features(df)
 
-        summary = f"CLAIM FLAGGED ({risk_percentage:.1f}% Risk). "
-        if top_factors:
-            summary += "Top flagged factors: " + ", ".join(
-                [f"{f['feature']} ({f['value']})" for f in top_factors]
+        # Align columns exactly as the preprocessor expects
+        expected_cols = list(numeric_cols) + list(categorical_cols)
+        for col in expected_cols:
+            if col not in df_feats.columns:
+                df_feats[col] = np.nan
+
+        X_df         = df_feats[expected_cols]
+        X_transformed = preprocessor.transform(X_df)          # (1, n_features)
+        x_row         = np.asarray(X_transformed[0]).ravel()  # 1-D
+
+        # Feature names after preprocessing (numeric first, then categorical)
+        try:
+            feature_names = (
+                list(preprocessor.transformers_[0][1].get_feature_names_out(numeric_cols))
+                + list(preprocessor.transformers_[1][1].get_feature_names_out(categorical_cols))
             )
-        else:
-            summary += f"Identified as anomaly by {model_name} feature distribution."
+        except Exception:
+            # Fallback: raw column names (no one-hot expansion info)
+            feature_names = expected_cols
 
-        return {
-            "top_factors": top_factors,
-            "summary": summary,
-            "confidence": round(risk_percentage / 100, 2),
-            "method": f"Heuristic / {model_name}",
-            "provider_id": pred["provider_id"]
-        }
+        # ── 4. Delegate to SHAP explainer ────────────────────────────────────
+        explanation = explain_claim(
+            model_name=model_name,
+            clf=clf,
+            x_row=x_row,
+            feature_names=feature_names,
+            risk_percentage=risk_percentage,
+            provider_id=provider_id,
+        )
+
+        return explanation
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
