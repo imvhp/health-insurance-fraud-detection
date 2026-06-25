@@ -1,13 +1,13 @@
 {
   "base_rows": 66773,
   "new_files": [
-    "data\\new\\claims_20260621.csv"
+    "data\\new\\claims_20260625.csv"
   ],
   "new_file_count": 1,
-  "rows_before_dedup": 66775,
+  "rows_before_dedup": 66776,
   "rows_after_dedup": 66707,
   "dedup_key": "CLM_ID",
-  "combined_data": "outputs\\retrain\\20260621_155802\\combined_claims.csv",
+  "combined_data": "outputs\\retrain\\20260625_223656\\combined_claims.csv",
   "selection_report": {
     "data_profile": {
       "n_rows": 66707,
@@ -30,15 +30,15 @@
       "selected_model": "CBLOF",
       "selection_basis": "evaluation_metrics",
       "primary_metric": "f1_score",
-      "f1_score": 0.5344449319877139,
-      "roc_auc": 0.9295037797062089,
-      "average_precision": 0.49202837877531225
+      "f1_score": 0.4573913043478261,
+      "roc_auc": 0.9005765483498278,
+      "average_precision": 0.39677426312195563
     }
   },
-  "timestamp": "20260621_155802",
+  "timestamp": "20260625_223656",
   "days": 4,
-  "output_dir": "outputs\\retrain\\20260621_155802",
-  "model_dir": "models\\retrain\\20260621_155802",
+  "output_dir": "outputs\\retrain\\20260625_223656",
+  "model_dir": "models\\retrain\\20260625_223656",
   "label_mode": "synthetic",
   "contamination": 0.05
 }

@@ -20,8 +20,8 @@
     "selected_model": "CBLOF",
     "selection_basis": "evaluation_metrics",
     "primary_metric": "f1_score",
-    "f1_score": 0.5344449319877139,
-    "roc_auc": 0.9295037797062089,
-    "average_precision": 0.49202837877531225
+    "f1_score": 0.4573913043478261,
+    "roc_auc": 0.9005765483498278,
+    "average_precision": 0.39677426312195563
   }
 }

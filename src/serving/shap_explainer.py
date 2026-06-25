@@ -120,7 +120,12 @@ def _build_summary(risk_percentage: float, top_factors: list[dict]) -> str:
         f"{f['feature']} {f['direction']} (value: {f['value']}, impact: {f['impact']})"
         for f in top_factors[:3]
     ]
-    return f"{risk_str} Key driving factors: " + " | ".join(parts)
+    summary = f"{risk_str} Key driving factors: " + " | ".join(parts)
+    
+    # Truncate to 255 characters to prevent JPA transaction errors (VARCHAR(255) constraint)
+    if len(summary) > 255:
+        return summary[:252] + "..."
+    return summary
 
 
 def _build_confidence(top_factors: list[dict]) -> float:

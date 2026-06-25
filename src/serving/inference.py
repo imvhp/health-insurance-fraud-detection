@@ -123,21 +123,19 @@ _numeric_cols = []
 _categorical_cols = []
 _model_dir_used = None
 
-def get_serving_artifacts():
-    """Load preprocessor and models if not already loaded."""
+
+def _load_artifacts_from(model_dir: str):
+    """Internal: load preprocessor + models from *model_dir* into globals."""
     global _preprocessor, _models, _numeric_cols, _categorical_cols, _model_dir_used
 
-    if _preprocessor is not None:
-        return _preprocessor, _models, _numeric_cols, _categorical_cols, _model_dir_used
+    print(f"[INFO] Loading serving artifacts from: {model_dir}")
 
-    _model_dir_used = find_model_dir()
-    print(f"[INFO] Loading serving artifacts from: {_model_dir_used}")
-
-    preprocessor_path = os.path.join(_model_dir_used, "preprocessor.joblib")
+    preprocessor_path = os.path.join(model_dir, "preprocessor.joblib")
     if not os.path.exists(preprocessor_path):
         raise FileNotFoundError(f"Preprocessor not found at: {preprocessor_path}")
 
     _preprocessor = joblib.load(preprocessor_path)
+    _models = {}
 
     # Extract training-time feature names from preprocessor ColumnTransformer
     try:
@@ -150,7 +148,7 @@ def get_serving_artifacts():
 
     # Load available models
     for name in ["IsolationForest", "CBLOF", "OCSVM", "ECOD"]:
-        model_path = os.path.join(_model_dir_used, f"{name}.joblib")
+        model_path = os.path.join(model_dir, f"{name}.joblib")
         if os.path.exists(model_path):
             try:
                 _models[name] = joblib.load(model_path)
@@ -159,8 +157,40 @@ def get_serving_artifacts():
                 print(f"[WARNING] Failed to load model {name} from {model_path}: {e}")
 
     if not _models:
-        raise ValueError(f"No valid models found in {_model_dir_used}")
+        raise ValueError(f"No valid models found in {model_dir}")
 
+    _model_dir_used = model_dir
+
+
+def reload_serving_artifacts():
+    """Force a full reload from the best available model directory.
+
+    Call this after a retrain cycle completes so the server immediately
+    picks up the new model without requiring a restart.
+    """
+    global _preprocessor
+    _preprocessor = None          # clear cache flag so _load_artifacts_from runs
+    best_dir = find_model_dir()
+    _load_artifacts_from(best_dir)
+    print(f"[INFO] Serving artifacts reloaded — now using: {best_dir}")
+
+
+def get_serving_artifacts():
+    """Return cached preprocessor and models, reloading when a newer model
+    directory has appeared (e.g. after a retrain cycle)."""
+    global _preprocessor, _models, _numeric_cols, _categorical_cols, _model_dir_used
+
+    # Always check whether a newer model directory is now available
+    best_dir = find_model_dir()
+
+    if _preprocessor is not None and _model_dir_used == best_dir:
+        # Cache is valid — same directory, no change
+        return _preprocessor, _models, _numeric_cols, _categorical_cols, _model_dir_used
+
+    if _preprocessor is not None and _model_dir_used != best_dir:
+        print(f"[INFO] New model directory detected: {best_dir} (was: {_model_dir_used}). Reloading...")
+
+    _load_artifacts_from(best_dir)
     return _preprocessor, _models, _numeric_cols, _categorical_cols, _model_dir_used
 
 

@@ -400,6 +400,7 @@ def trigger_retrain(background_tasks: BackgroundTasks, req: Optional[RetrainRequ
         
     def run_retrain_pipeline(since: Optional[str], days: int):
         import subprocess
+        from src.serving.inference import reload_serving_artifacts
         print(f"Starting retrain pipeline background task (since={since}, days={days})")
         
         # Step 1: Export
@@ -420,6 +421,11 @@ def trigger_retrain(background_tasks: BackgroundTasks, req: Optional[RetrainRequ
             print(f"Running retrain: {' '.join(retrain_cmd)}")
             subprocess.run(retrain_cmd, cwd=PROJECT_ROOT, check=True)
             print("Retrain pipeline completed successfully")
+            # Step 3: Hot-reload serving artifacts so /predict uses the new model immediately
+            try:
+                reload_serving_artifacts()
+            except Exception as reload_err:
+                print(f"[WARNING] Hot-reload failed after retrain: {reload_err}")
         except subprocess.CalledProcessError as e:
             print(f"Retrain cycle failed: {e}")
 
